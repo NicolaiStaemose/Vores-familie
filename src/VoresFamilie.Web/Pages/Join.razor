@@ -1,0 +1,46 @@
+﻿@page "/join/{Token}"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject NavigationManager Nav
+@using VoresFamilie.Web.Api
+
+<h1>Du er inviteret til familien</h1>
+
+@if (!Session.IsSignedIn)
+{
+    <p>Log ind eller opret en bruger for at tage imod invitationen.</p>
+    <Login ReturnUrl="@($"/join/{Token}")" />
+}
+else if (Session.Family is not null)
+{
+    <p>Du er allerede medlem af <strong>@Session.Family.Name</strong>.</p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="AcceptAsync" class="card">
+        <label>Dit navn <InputText @bind-Value="_model.DisplayName" required maxlength="100" /></label>
+        @if (_error is not null) { <p class="error">@_error</p> }
+        <button class="primary" disabled="@_busy">Tag imod invitationen</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+    private readonly AcceptInvitationRequest _model = new() { DisplayName = "" };
+    private bool _busy;
+    private string? _error;
+
+    private async Task AcceptAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            await Api.AcceptInvitationAsync(Token, _model);
+            await Session.RefreshAsync();
+            Nav.NavigateTo("/");
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+}
+

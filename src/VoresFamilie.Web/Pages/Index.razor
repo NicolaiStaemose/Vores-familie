@@ -1,0 +1,23 @@
+﻿@page "/"
+@inherits SessionComponent
+@inject NavigationManager Nav
+
+@if (!Session.IsSignedIn)
+{
+    <Login />
+}
+else if (Session.Family is null)
+{
+    <CreateFamily />
+}
+else
+{
+    <h1>Hej @Session.Family.Me.DisplayName 👋</h1>
+    <p>Velkommen til <strong>@Session.Family.Name</strong>. Din rolle: @Session.RoleName(Session.Family.Me.Role).</p>
+    <p class="muted">Kalendere, lektier, rutiner, madplan og meget mere kommer i de næste faser.</p>
+}
+
+@code {
+}
+
+

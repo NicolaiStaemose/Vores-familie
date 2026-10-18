@@ -1,0 +1,26 @@
+﻿@inject IApiClient Api
+@inject Session Session
+@using VoresFamilie.Web.Api
+
+<h1>Opret jeres familie</h1>
+<EditForm Model="_model" OnValidSubmit="SubmitAsync" class="card">
+    <label>Familiens navn <InputText @bind-Value="_model.Name" required maxlength="100" /></label>
+    <label>Dit navn <InputText @bind-Value="_model.DisplayName" required maxlength="100" /></label>
+    @if (_error is not null) { <p class="error">@_error</p> }
+    <button class="primary" disabled="@_busy">Opret familie</button>
+</EditForm>
+<p class="muted">Har du fået et invitationslink? Åbn linket i stedet.</p>
+
+@code {
+    private readonly CreateFamilyRequest _model = new() { Name = "", DisplayName = "" };
+    private bool _busy;
+    private string? _error;
+
+    private async Task SubmitAsync()
+    {
+        _busy = true; _error = null;
+        try { await Api.CreateFamilyAsync(_model); await Session.RefreshAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+}

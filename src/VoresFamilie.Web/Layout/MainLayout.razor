@@ -1,0 +1,34 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject Session Session
+@inject NavigationManager Nav
+
+<header class="topbar">
+    <a class="brand" href="/">Vores familie</a>
+    @if (Session.IsSignedIn)
+    {
+        <nav>
+            @if (Session.IsAdmin) { <a href="admin">Admin</a> }
+            <button class="link" @onclick="LogoutAsync">Log ud</button>
+        </nav>
+    }
+</header>
+<main class="content">
+    @if (!Session.Loaded) { <p>Henter…</p> } else { @Body }
+</main>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += StateHasChanged;
+        await Session.RefreshAsync();
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Session.LogoutAsync();
+        Nav.NavigateTo("/", forceLoad: false);
+    }
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+}

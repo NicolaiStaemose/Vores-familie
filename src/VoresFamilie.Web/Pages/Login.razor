@@ -1,0 +1,50 @@
+﻿@inject IApiClient Api
+@inject Session Session
+@using VoresFamilie.Web.Api
+
+<h1>@(_register ? "Opret bruger" : "Log ind")</h1>
+
+<EditForm Model="_model" OnValidSubmit="SubmitAsync" class="card">
+    <label>E-mail <InputText type="email" @bind-Value="_model.Email" autocomplete="username" required /></label>
+    <label>Adgangskode (mindst 8 tegn)
+        <InputText type="password" @bind-Value="_model.Password" autocomplete="@(_register ? "new-password" : "current-password")" required minlength="8" />
+    </label>
+    @if (_error is not null) { <p class="error">@_error</p> }
+    <button class="primary" disabled="@_busy">@(_register ? "Opret bruger" : "Log ind")</button>
+    <button type="button" class="link" @onclick="() => _register = !_register">
+        @(_register ? "Har du allerede en bruger? Log ind" : "Ny her? Opret bruger")
+    </button>
+</EditForm>
+
+@if (_google)
+{
+    <a class="button google" href="@GoogleUrl">Log ind med Google</a>
+}
+
+@code {
+    [Parameter] public string ReturnUrl { get; set; } = "/";
+    private readonly RegisterRequest _model = new() { Email = "", Password = "" };
+    private bool _register, _busy, _google;
+    private string? _error;
+
+    private string GoogleUrl => $"api/auth/google?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _google = (await Api.GetAuthProvidersAsync()).Google; } catch { /* no Google button */ }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            if (_register) await Api.RegisterAsync(_model);
+            else await Api.LoginAsync(new LoginRequest { Email = _model.Email, Password = _model.Password });
+            await Session.RefreshAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+}
+
