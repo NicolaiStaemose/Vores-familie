@@ -1,5 +1,6 @@
 ﻿@inject IApiClient Api
 @inject Session Session
+@inject HttpClient Http
 @using VoresFamilie.Web.Api
 
 <h1>@(_register ? "Opret bruger" : "Log ind")</h1>
@@ -27,7 +28,7 @@
     private bool _register, _busy, _google;
     private string? _error;
 
-    private string GoogleUrl => $"api/auth/google?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+    private string GoogleUrl => $"{Http.BaseAddress}api/auth/google?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -47,4 +48,5 @@
         finally { _busy = false; }
     }
 }
+
 
