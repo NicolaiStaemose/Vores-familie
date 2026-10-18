@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoresFamilie.Api/VoresFamilie.Api.csproj" />
+    <Project Path="src/VoresFamilie.Application/VoresFamilie.Application.csproj" />
+    <Project Path="src/VoresFamilie.Domain/VoresFamilie.Domain.csproj" />
+    <Project Path="src/VoresFamilie.Infrastructure/VoresFamilie.Infrastructure.csproj" />
+    <Project Path="src/VoresFamilie.Web/VoresFamilie.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoresFamilie.Api.Tests/VoresFamilie.Api.Tests.csproj" />
+    <Project Path="tests/VoresFamilie.Application.Tests/VoresFamilie.Application.Tests.csproj" />
+    <Project Path="tests/VoresFamilie.Domain.Tests/VoresFamilie.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

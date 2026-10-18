@@ -1,0 +1,10 @@
+﻿bin/
+obj/
+.vs/
+*.user
+.env
+openapi.json.tmp
+TestResults/
+*.db
+*.db-shm
+*.db-wal
