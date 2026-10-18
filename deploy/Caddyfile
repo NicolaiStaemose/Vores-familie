@@ -1,0 +1,10 @@
+﻿# `/api` and `/healthz` go to the backend, everything else to the frontend (same origin).
+:8080 {
+	@backend path /api/* /healthz
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+	handle {
+		reverse_proxy frontend:80
+	}
+}

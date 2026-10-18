@@ -1,0 +1,25 @@
+﻿{
+  "runtime": "Net100",
+  "documentGenerator": {
+    "fromDocument": {
+      "json": "../../contracts/openapi.json"
+    }
+  },
+  "codeGenerators": {
+    "openApiToCSharpClient": {
+      "className": "ApiClient",
+      "namespace": "VoresFamilie.Web.Api",
+      "generateClientInterfaces": true,
+      "generateDtoTypes": true,
+      "injectHttpClient": true,
+      "disposeHttpClient": false,
+      "useBaseUrl": false,
+      "generateExceptionClasses": true,
+      "exceptionClass": "ApiException",
+      "jsonLibrary": "SystemTextJson",
+      "generateOptionalParameters": false,
+      "operationGenerationMode": "SingleClientFromOperationId",
+      "output": "Generated/ApiClient.g.cs"
+    }
+  }
+}

@@ -1,0 +1,127 @@
+﻿@page "/admin"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject NavigationManager Nav
+@using VoresFamilie.Web.Api
+
+<h1>Admin</h1>
+
+@if (!Session.IsAdmin)
+{
+    <p>Kun admin har adgang til denne side.</p>
+    return;
+}
+
+@if (_error is not null) { <p class="error">@_error</p> }
+
+<h2>Medlemmer</h2>
+@foreach (var m in _members)
+{
+    <section class="card">
+        <header class="row">
+            <strong>@m.DisplayName</strong>
+            <select value="@m.Role" @onchange="e => ChangeRoleAsync(m, e.Value?.ToString())">
+                @foreach (var r in Enum.GetValues<Role>()) { <option value="@r" selected="@(r == m.Role)">@Session.RoleName(r)</option> }
+            </select>
+        </header>
+        @if (m.Role == Role.Admin)
+        {
+            <p class="muted">Admin kan alt.</p>
+        }
+        else
+        {
+            <div class="grid">
+                @foreach (var area in Enum.GetValues<Area>())
+                {
+                    var current = Level(m, area);
+                    <label>@Session.AreaName(area)
+                        <select @onchange="e => SetPermissionAsync(m, area, e.Value?.ToString())">
+                            @foreach (var l in Enum.GetValues<AccessLevel>()) { <option value="@l" selected="@(l == current)">@Session.LevelName(l)</option> }
+                        </select>
+                    </label>
+                }
+            </div>
+            <label class="check"><input type="checkbox" checked="@m.CanCheckOwnItems" @onchange="e => SetCheckAsync(m, (bool)e.Value!)" /> Må afkrydse egne rutiner og lektier</label>
+        }
+        @if (m.Id != Session.Family!.Me.Id)
+        {
+            <button class="link danger" @onclick="() => RemoveAsync(m)">Fjern fra familien</button>
+        }
+    </section>
+}
+
+<h2>Invitationer</h2>
+<div class="card">
+    <div class="row">
+        <select @bind="_newRole">
+            @foreach (var r in Enum.GetValues<Role>()) { <option value="@r">@Session.RoleName(r)</option> }
+        </select>
+        <button class="primary" @onclick="InviteAsync">Opret invitationslink</button>
+    </div>
+    @if (_link is not null)
+    {
+        <p>Send dette link (gyldigt i 7 dage, kan bruges én gang):</p>
+        <input readonly value="@_link" @onfocus="SelectAll" />
+    }
+</div>
+@foreach (var i in _invitations.Where(i => !i.Used))
+{
+    <p class="row">@Session.RoleName(i.Role) – udløber @i.ExpiresAt.LocalDateTime.ToString("d. MMM HH:mm")
+        <button class="link danger" @onclick="() => RevokeAsync(i)">Træk tilbage</button></p>
+}
+
+@code {
+    private List<MemberDto> _members = [];
+    private List<InvitationDto> _invitations = [];
+    private Role _newRole = Role.Barn;
+    private string? _link, _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAdmin) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _members = (await Api.ListMembersAsync()).ToList();
+            _invitations = (await Api.ListInvitationsAsync()).ToList();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private static AccessLevel Level(MemberDto m, Area a) =>
+        m.Permissions.TryGetValue(a.ToString(), out var l) ? l : AccessLevel.None;
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _error = null;
+        try { await action(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        await LoadAsync();
+    }
+
+    private Task ChangeRoleAsync(MemberDto m, string? value) =>
+        RunAsync(() => Api.ChangeRoleAsync(m.Id, new ChangeRoleRequest { Role = Enum.Parse<Role>(value!) }));
+
+    private Task SetPermissionAsync(MemberDto m, Area area, string? value) =>
+        RunAsync(() => Api.SetPermissionAsync(m.Id, new SetPermissionRequest { Area = area, Level = Enum.Parse<AccessLevel>(value!) }));
+
+    private Task SetCheckAsync(MemberDto m, bool value) =>
+        RunAsync(() => Api.SetCanCheckOwnItemsAsync(m.Id, new SetCanCheckOwnItemsRequest { Value = value }));
+
+    private Task RemoveAsync(MemberDto m) => RunAsync(() => Api.RemoveMemberAsync(m.Id));
+
+    private Task RevokeAsync(InvitationDto i) => RunAsync(() => Api.RevokeInvitationAsync(i.Id));
+
+    private Task InviteAsync() => RunAsync(async () =>
+    {
+        var created = await Api.CreateInvitationAsync(new CreateInvitationRequest { Role = _newRole });
+        _link = new Uri(new Uri(Nav.BaseUri), $"join/{created.Token}").ToString();
+    });
+
+    private static void SelectAll() { }
+}
+
+

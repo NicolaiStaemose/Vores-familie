@@ -9,7 +9,12 @@ using VoresFamilie.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddOpenApi();
+// Enums are serialized as strings; say so in the contract so generated clients use string enums.
+builder.Services.AddOpenApi(o => o.AddSchemaTransformer((schema, context, _) =>
+{
+    if (context.JsonTypeInfo.Type.IsEnum) schema.Type = Microsoft.OpenApi.JsonSchemaType.String;
+    return Task.CompletedTask;
+}));
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services
@@ -79,3 +84,4 @@ if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocumen
 app.Run();
 
 public partial class Program;
+

@@ -1,0 +1,16 @@
+﻿name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build VoresFamilie.slnx -c Release
+      - run: dotnet test VoresFamilie.slnx -c Release --no-build
+      - name: Contract is up to date
+        run: git diff --exit-code contracts/openapi.json

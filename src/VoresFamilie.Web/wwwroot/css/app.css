@@ -87,3 +87,22 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* --- App styles (mobile first) --- */
+body { margin: 0; font-family: system-ui, sans-serif; background: #f6f7fb; color: #1b1f2a; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: .75rem 1rem; background: #03173d; color: #fff; }
+.topbar a, .topbar .link { color: #fff; margin-left: 1rem; }
+.brand { font-weight: 700; text-decoration: none; margin-left: 0 !important; }
+.content { max-width: 40rem; margin: 0 auto; padding: 1rem; }
+.card { background: #fff; border-radius: .75rem; padding: 1rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,.1); display: flex; flex-direction: column; gap: .75rem; }
+label { display: flex; flex-direction: column; gap: .25rem; font-size: .9rem; }
+label.check { flex-direction: row; align-items: center; gap: .5rem; }
+input, select { font: inherit; padding: .6rem; border: 1px solid #c9ceda; border-radius: .5rem; }
+button, .button { font: inherit; padding: .7rem 1rem; border-radius: .5rem; border: 0; cursor: pointer; text-align: center; text-decoration: none; }
+button.primary { background: #1b6ef3; color: #fff; }
+.button.google { display: block; background: #fff; color: #1b1f2a; border: 1px solid #c9ceda; }
+button.link { background: none; color: #1b6ef3; padding: .25rem; }
+button.danger { color: #c0262d; }
+.error { color: #c0262d; margin: 0; }
+.muted { color: #667085; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .5rem; }
