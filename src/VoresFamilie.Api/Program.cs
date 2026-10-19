@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Scalar.AspNetCore;
@@ -17,6 +18,11 @@ builder.Services.AddOpenApi(o => o.AddSchemaTransformer((schema, context, _) =>
     return Task.CompletedTask;
 }));
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Google refresh tokens are encrypted with these keys; they must survive restarts (a volume in Docker, Key Vault/Blob later in Azure).
+builder.Services.AddDataProtection()
+    .SetApplicationName("VoresFamilie")
+    .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:KeysPath"] ?? Path.Combine(builder.Environment.ContentRootPath, "keys")));
 
 builder.Services
     .AddIdentity<IdentityUser, IdentityRole>(o =>
@@ -84,6 +90,7 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/healthz", () => Results.Ok("ok")).ExcludeFromDescription();
 app.MapAuthEndpoints(googleEnabled);
 app.MapFamilyEndpoints();
+app.MapCalendarEndpoints();
 
 // Skip DB setup when the OpenAPI build task starts the app only to read the document.
 if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider")
@@ -92,6 +99,8 @@ if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocumen
 app.Run();
 
 public partial class Program;
+
+
 
 
 

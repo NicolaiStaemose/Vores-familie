@@ -42,6 +42,14 @@ public static class DependencyInjection
             services.AddSingleton<IGoogleCalendarGateway>(sp => sp.GetRequiredService<FakeGoogleCalendarGateway>());
             services.AddSingleton<IGoogleAuthService>(sp => sp.GetRequiredService<FakeGoogleCalendarGateway>());
         }
+        else
+        {
+            services.Configure<GoogleCalendarOptions>(config.GetSection("Google:Calendar"));
+            services.AddSingleton<GoogleAuthService>();
+            services.AddSingleton<IGoogleAuthService>(sp => sp.GetRequiredService<GoogleAuthService>());
+            services.AddSingleton<IGoogleCalendarGateway, GoogleCalendarGateway>();
+        }
+        services.AddHostedService<CalendarSyncHostedService>();
         return services;
     }
 
@@ -53,4 +61,5 @@ public static class DependencyInjection
         else await db.Database.EnsureCreatedAsync();
     }
 }
+
 

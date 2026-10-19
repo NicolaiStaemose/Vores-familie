@@ -434,6 +434,25 @@ namespace VoresFamilie.Infrastructure.Migrations
                     b.ToTable("Invitation");
                 });
 
+            modelBuilder.Entity("VoresFamilie.Infrastructure.GoogleConnection", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<long>("ConnectedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EncryptedRefreshToken")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("GoogleConnections");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)

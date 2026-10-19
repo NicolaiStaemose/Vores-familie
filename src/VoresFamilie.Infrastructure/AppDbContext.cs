@@ -14,6 +14,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<FamilyCalendar> Calendars => Set<FamilyCalendar>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<HomeworkCompletion> HomeworkCompletions => Set<HomeworkCompletion>();
+    public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -69,6 +70,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             e.HasIndex(x => new { x.CalendarId, x.Start });
         });
 
+        b.Entity<GoogleConnection>(e =>
+        {
+            e.HasKey(g => g.UserId);
+            e.Property(g => g.UserId).HasMaxLength(450);
+            e.Property(g => g.EncryptedRefreshToken).HasMaxLength(2000).IsRequired();
+            e.Property(g => g.ConnectedAt).HasConversion(UtcTicks);
+        });
+
         b.Entity<HomeworkCompletion>(e =>
         {
             e.HasKey(x => x.Id);
@@ -106,5 +115,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         return new MemberPermissions(j.Levels, j.CanCheckOwnItems);
     }
 }
+
 
 
