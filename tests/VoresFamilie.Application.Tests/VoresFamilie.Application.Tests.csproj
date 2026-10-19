@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\VoresFamilie.Application\VoresFamilie.Application.csproj" />
     <ProjectReference Include="..\..\src\VoresFamilie.Domain\VoresFamilie.Domain.csproj" />
+    <ProjectReference Include="..\..\src\VoresFamilie.Infrastructure\VoresFamilie.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

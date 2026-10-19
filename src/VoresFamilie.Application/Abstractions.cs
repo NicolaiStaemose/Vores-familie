@@ -18,3 +18,6 @@ public interface IClock
 public class NotFoundException(string message) : Exception(message);
 
 public class ForbiddenException(string message) : Exception(message);
+
+/// <summary>The request conflicts with the current state (for example an event changed in Google).</summary>
+public class ConflictException(string message) : Exception(message);

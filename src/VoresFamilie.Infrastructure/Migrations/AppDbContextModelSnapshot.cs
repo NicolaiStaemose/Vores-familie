@@ -220,6 +220,57 @@ namespace VoresFamilie.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("VoresFamilie.Domain.CalendarEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllDay")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("CalendarId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ETag")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("End")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("GoogleEventId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("Start")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalendarId", "GoogleEventId")
+                        .IsUnique();
+
+                    b.HasIndex("CalendarId", "Start");
+
+                    b.ToTable("CalendarEvents");
+                });
+
             modelBuilder.Entity("VoresFamilie.Domain.Family", b =>
                 {
                     b.Property<Guid>("Id")
@@ -233,6 +284,55 @@ namespace VoresFamilie.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Families");
+                });
+
+            modelBuilder.Entity("VoresFamilie.Domain.FamilyCalendar", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ConnectedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("GoogleCalendarId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("LastSyncedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("OwnerMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SyncToken")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId", "GoogleCalendarId")
+                        .IsUnique();
+
+                    b.ToTable("Calendars");
                 });
 
             modelBuilder.Entity("VoresFamilie.Domain.FamilyMember", b =>
@@ -269,6 +369,33 @@ namespace VoresFamilie.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("FamilyMember");
+                });
+
+            modelBuilder.Entity("VoresFamilie.Domain.HomeworkCompletion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CalendarId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("CompletedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("GoogleEventId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalendarId", "GoogleEventId")
+                        .IsUnique();
+
+                    b.ToTable("HomeworkCompletions");
                 });
 
             modelBuilder.Entity("VoresFamilie.Domain.Invitation", b =>

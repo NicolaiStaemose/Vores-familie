@@ -25,6 +25,23 @@ public static class DependencyInjection
         services.AddScoped<IFamilyRepository, FamilyRepository>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<FamilyService>();
+        services.AddScoped<ICalendarRepository, CalendarRepository>();
+        services.AddScoped<CalendarSyncService>();
+        services.AddScoped<CalendarService>();
+        services.AddScoped<HomeworkService>();
+
+        // Google:Mode=Fake runs the calendar features against an in-memory Google (no Google Cloud project needed).
+        if (string.Equals(config["Google:Mode"], "Fake", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<FakeGoogleCalendarGateway>(sp =>
+            {
+                var fake = new FakeGoogleCalendarGateway(sp.GetRequiredService<IClock>());
+                fake.SeedDemo();
+                return fake;
+            });
+            services.AddSingleton<IGoogleCalendarGateway>(sp => sp.GetRequiredService<FakeGoogleCalendarGateway>());
+            services.AddSingleton<IGoogleAuthService>(sp => sp.GetRequiredService<FakeGoogleCalendarGateway>());
+        }
         return services;
     }
 
@@ -36,3 +53,4 @@ public static class DependencyInjection
         else await db.Database.EnsureCreatedAsync();
     }
 }
+
