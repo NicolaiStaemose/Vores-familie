@@ -8,6 +8,12 @@
       ConnectionStrings__Default: Data Source=/data/vores-familie.db
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      # Google Calendar (separate OAuth client from the login above is fine, or reuse the same one).
+      Google__Calendar__ClientId: ${GOOGLE_CALENDAR_CLIENT_ID:-}
+      Google__Calendar__ClientSecret: ${GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      # Set GOOGLE_MODE=Fake to try the calendars with demo data and no Google account.
+      Google__Mode: ${GOOGLE_MODE:-}
+      DataProtection__KeysPath: /data/keys
     volumes:
       - data:/data
   frontend:
@@ -25,3 +31,4 @@
       - frontend
 volumes:
   data:
+
