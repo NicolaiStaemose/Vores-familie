@@ -11,8 +11,11 @@
         <InputText type="password" @bind-Value="_model.Password" autocomplete="@(_register ? "new-password" : "current-password")" required minlength="8" />
     </label>
     @if (_error is not null) { <p class="error">@_error</p> }
-    <button class="primary" disabled="@_busy">@(_register ? "Opret bruger" : "Log ind")</button>
-    <button type="button" class="link" @onclick="() => _register = !_register">
+    <button class="primary" disabled="@_busy" aria-busy="@_busy">
+        @if (_busy) { <span class="spinner" aria-hidden="true"></span> }
+        @(_busy ? (_register ? "Opretter bruger…" : "Logger ind…") : (_register ? "Opret bruger" : "Log ind"))
+    </button>
+    <button type="button" class="link" disabled="@_busy" @onclick="() => _register = !_register">
         @(_register ? "Har du allerede en bruger? Log ind" : "Ny her? Opret bruger")
     </button>
 </EditForm>
@@ -48,5 +51,6 @@
         finally { _busy = false; }
     }
 }
+
 
 
