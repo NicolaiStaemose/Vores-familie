@@ -1,5 +1,6 @@
 ﻿@inject IApiClient Api
 @inject Session Session
+@inject HttpClient Http
 @using VoresFamilie.Web.Api
 
 <h1>@(_register ? "Opret bruger" : "Log ind")</h1>
@@ -10,8 +11,11 @@
         <InputText type="password" @bind-Value="_model.Password" autocomplete="@(_register ? "new-password" : "current-password")" required minlength="8" />
     </label>
     @if (_error is not null) { <p class="error">@_error</p> }
-    <button class="primary" disabled="@_busy">@(_register ? "Opret bruger" : "Log ind")</button>
-    <button type="button" class="link" @onclick="() => _register = !_register">
+    <button class="primary" disabled="@_busy" aria-busy="@_busy">
+        @if (_busy) { <span class="spinner" aria-hidden="true"></span> }
+        @(_busy ? (_register ? "Opretter bruger…" : "Logger ind…") : (_register ? "Opret bruger" : "Log ind"))
+    </button>
+    <button type="button" class="link" disabled="@_busy" @onclick="() => _register = !_register">
         @(_register ? "Har du allerede en bruger? Log ind" : "Ny her? Opret bruger")
     </button>
 </EditForm>
@@ -27,7 +31,7 @@
     private bool _register, _busy, _google;
     private string? _error;
 
-    private string GoogleUrl => $"api/auth/google?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+    private string GoogleUrl => $"{Http.BaseAddress}api/auth/google?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -42,9 +46,14 @@
             if (_register) await Api.RegisterAsync(_model);
             else await Api.LoginAsync(new LoginRequest { Email = _model.Email, Password = _model.Password });
             await Session.RefreshAsync();
+            if (!Session.IsSignedIn)
+                _error = "Login lykkedes, men browseren sendte ikke login-cookien med. Åbn appen og API'et med samme protokol (begge http eller begge https).";
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _busy = false; }
     }
 }
+
+
+
 

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Scalar.AspNetCore;
 using VoresFamilie.Api;
 using VoresFamilie.Application;
 using VoresFamilie.Domain;
@@ -58,6 +59,10 @@ if (googleEnabled)
 }
 
 builder.Services.AddAuthorization();
+
+// Only needed when the Web dev server runs on its own port (Visual Studio F5). In production everything is same-origin behind the proxy.
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -68,11 +73,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseCors();
 app.UseExceptionMapping();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapOpenApi("/api/openapi.json");
+if (app.Environment.IsDevelopment())
+    app.MapScalarApiReference("/scalar", o => o.WithOpenApiRoutePattern("/api/openapi.json").WithTitle("Vores familie API"));
 app.MapGet("/healthz", () => Results.Ok("ok")).ExcludeFromDescription();
 app.MapAuthEndpoints(googleEnabled);
 app.MapFamilyEndpoints();
@@ -84,4 +92,6 @@ if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocumen
 app.Run();
 
 public partial class Program;
+
+
 
