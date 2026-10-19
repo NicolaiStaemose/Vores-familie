@@ -46,11 +46,14 @@
             if (_register) await Api.RegisterAsync(_model);
             else await Api.LoginAsync(new LoginRequest { Email = _model.Email, Password = _model.Password });
             await Session.RefreshAsync();
+            if (!Session.IsSignedIn)
+                _error = "Login lykkedes, men browseren sendte ikke login-cookien med. Åbn appen og API'et med samme protokol (begge http eller begge https).";
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _busy = false; }
     }
 }
+
 
 
 
