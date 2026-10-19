@@ -1,6 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Scalar.AspNetCore;
 using VoresFamilie.Api;
 using VoresFamilie.Application;
 using VoresFamilie.Domain;
@@ -78,6 +79,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapOpenApi("/api/openapi.json");
+if (app.Environment.IsDevelopment())
+    app.MapScalarApiReference("/scalar", o => o.WithOpenApiRoutePattern("/api/openapi.json").WithTitle("Vores familie API"));
 app.MapGet("/healthz", () => Results.Ok("ok")).ExcludeFromDescription();
 app.MapAuthEndpoints(googleEnabled);
 app.MapFamilyEndpoints();
@@ -89,5 +92,6 @@ if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocumen
 app.Run();
 
 public partial class Program;
+
 
 
