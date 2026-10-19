@@ -127,6 +127,7 @@ public static class CalendarEndpoints
         if (returnUrl.StartsWith('/') && !returnUrl.StartsWith("//")) return returnUrl;
         if (Uri.TryCreate(returnUrl, UriKind.Absolute, out var uri))
         {
+            if (string.Equals(uri.Authority, ctx.Request.Host.Value, StringComparison.OrdinalIgnoreCase)) return returnUrl;
             var origin = uri.GetLeftPart(UriPartial.Authority);
             var allowed = config.GetSection("Cors:Origins").Get<string[]>() ?? [];
             if (allowed.Contains(origin, StringComparer.OrdinalIgnoreCase)) return returnUrl;
@@ -137,3 +138,4 @@ public static class CalendarEndpoints
     private static string WithQuery(string url, string key, string value) =>
         url + (url.Contains('?') ? '&' : '?') + $"{key}={Uri.EscapeDataString(value)}";
 }
+

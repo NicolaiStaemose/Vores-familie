@@ -12,7 +12,7 @@ public sealed class CalendarService(IFamilyRepository families, ICalendarReposit
 
     public async Task<IReadOnlyList<GoogleCalendarDto>> ListGoogleCalendarsAsync(string userId, CancellationToken ct = default)
     {
-        var (family, _) = await LoadAsync(userId, adminOnly: true, ct);
+        var (family, _) = await LoadAsync(userId, adminOnly: false, ct); // everyone lists their own Google account
         var added = (await calendars.GetCalendarsAsync(family.Id, ct)).Select(c => c.GoogleCalendarId).ToHashSet();
         return (await RequireConnectedAsync(userId, () => google.ListCalendarsAsync(userId, ct)))
             .Select(c => new GoogleCalendarDto(c.Id, c.Name, c.Color, added.Contains(c.Id)))
@@ -32,18 +32,23 @@ public sealed class CalendarService(IFamilyRepository families, ICalendarReposit
 
     public async Task<CalendarDto> AddCalendarAsync(string userId, AddCalendarRequest request, CancellationToken ct = default)
     {
-        var (family, me) = await LoadAsync(userId, adminOnly: true, ct);
+        var (family, me) = await LoadAsync(userId, adminOnly: false, ct);
+        // Admin adds family and homework calendars (and anyone's calendar); members add only their own personal calendar,
+        // read from their own Google account.
+        var ownPersonal = request.Kind == CalendarKind.Personal && (request.OwnerMemberId ?? me.Id) == me.Id;
+        if (me.Role != Role.Admin && !ownPersonal) throw new ForbiddenException("Kun admin kan gøre dette.");
+        var owner = request.Kind == CalendarKind.Family ? null : request.OwnerMemberId ?? (ownPersonal ? me.Id : null);
         var available = await RequireConnectedAsync(userId, () => google.ListCalendarsAsync(userId, ct));
         var info = available.FirstOrDefault(c => c.Id == request.GoogleCalendarId)
             ?? throw new DomainException("Kalenderen findes ikke på din Google-konto.");
         var existing = await calendars.GetCalendarsAsync(family.Id, ct);
         if (existing.Any(c => c.GoogleCalendarId == request.GoogleCalendarId))
             throw new DomainException("Kalenderen er allerede tilføjet.");
-        if (request.OwnerMemberId is { } owner && family.Members.All(m => m.Id != owner))
+        if (owner is { } ownerId && family.Members.All(m => m.Id != ownerId))
             throw new DomainException("Ejeren er ikke medlem af familien.");
 
         var name = string.IsNullOrWhiteSpace(request.Name) ? info.Name : request.Name;
-        var calendar = FamilyCalendar.Create(family.Id, name, request.Kind, request.OwnerMemberId,
+        var calendar = FamilyCalendar.Create(family.Id, name, request.Kind, owner,
             request.GoogleCalendarId, userId, request.Color ?? info.Color);
         await calendars.AddCalendarAsync(calendar, ct);
         await calendars.SaveChangesAsync(ct);
@@ -53,8 +58,10 @@ public sealed class CalendarService(IFamilyRepository families, ICalendarReposit
 
     public async Task RemoveCalendarAsync(string userId, Guid calendarId, CancellationToken ct = default)
     {
-        var (family, _) = await LoadAsync(userId, adminOnly: true, ct);
+        var (family, me) = await LoadAsync(userId, adminOnly: false, ct);
         var calendar = await GetOwnCalendarAsync(family, calendarId, ct);
+        var ownPersonal = calendar.Kind == CalendarKind.Personal && calendar.OwnerMemberId == me.Id && calendar.ConnectedByUserId == userId;
+        if (me.Role != Role.Admin && !ownPersonal) throw new ForbiddenException("Kun admin kan gøre dette.");
         await calendars.RemoveCalendarAsync(calendar, ct);
         await calendars.SaveChangesAsync(ct);
     }
@@ -183,3 +190,4 @@ public sealed class CalendarService(IFamilyRepository families, ICalendarReposit
         new(e.GoogleEventId, e.CalendarId, e.Title, e.Description, e.Location, e.Start, e.End, e.AllDay,
             e.IsHomework, HomeworkParser.Parse(e.Description).Subject);
 }
+

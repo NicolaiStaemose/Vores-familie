@@ -78,12 +78,23 @@ public class CalendarSyncTests
 public class CalendarServiceTests
 {
     [Fact]
-    public async Task Only_admin_can_add_calendars()
+    public async Task Members_can_only_add_their_own_personal_calendar()
     {
         var env = new Env();
         env.Google.AddCalendar("g1", "Fælles");
+        env.Google.AddCalendar("g2", "Emma privat");
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             env.CalendarService.AddCalendarAsync(Env.ChildUser, new AddCalendarRequest("g1", "Fælles", CalendarKind.Family, null, null)));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            env.CalendarService.AddCalendarAsync(Env.ChildUser, new AddCalendarRequest("g1", "Noahs", CalendarKind.Personal, env.Sibling.Id, null)));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            env.CalendarService.AddCalendarAsync(Env.ChildUser, new AddCalendarRequest("g1", "Lektier", CalendarKind.Homework, env.Child.Id, null)));
+
+        var own = await env.CalendarService.AddCalendarAsync(Env.ChildUser, new AddCalendarRequest("g2", "Emma privat", CalendarKind.Personal, null, null));
+        Assert.Equal(env.Child.Id, own.OwnerMemberId);
+        Assert.Equal("Emma", own.OwnerName);
+        await Assert.ThrowsAsync<ForbiddenException>(() => env.CalendarService.RemoveCalendarAsync(Env.SiblingUser, own.Id));
+        await env.CalendarService.RemoveCalendarAsync(Env.ChildUser, own.Id);
     }
 
     [Fact]
@@ -274,3 +285,4 @@ public class HomeworkServiceTests
         Assert.Equal(2, (await env.Homework.ListAsync(Env.AdminUser, env.Day(0), env.Day(7), env.Child.Id)).Count);
     }
 }
+

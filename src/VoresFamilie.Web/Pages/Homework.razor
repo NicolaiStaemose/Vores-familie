@@ -1,0 +1,127 @@
+﻿@page "/lektier"
+@inherits SessionComponent
+@inject IApiClient Api
+
+<h1>Lektier</h1>
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/lektier" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@if (_children.Count > 1)
+{
+    <div class="chips">
+        <button class="chip @(_child is null ? "on" : "")" @onclick="() => PickChild(null)">Alle</button>
+        @foreach (var c in _children)
+        {
+            <button class="chip @(_child == c.Id ? "on" : "")" @onclick="() => PickChild(c.Id)">@c.Name</button>
+        }
+    </div>
+}
+
+@if (_loading)
+{
+    <p class="muted">Henter lektier…</p>
+}
+else if (_items.Count == 0)
+{
+    <div class="card">
+        <p>Ingen lektier de næste to uger. 🎉</p>
+        <p class="muted small">Lektier vises, når en lektiekalender er tilføjet, og begivenhederne hedder noget med "lektie".</p>
+    </div>
+}
+else
+{
+    <p class="muted small" aria-live="polite">@Shown.Count(i => i.Done) af @Shown.Count lektier er lavet@(_saved ? " · gemt ✓" : "")</p>
+
+    @foreach (var group in Shown.GroupBy(i => i.Start.LocalDateTime.Date).OrderBy(g => g.Key))
+    {
+        var late = group.Key < DateTime.Today;
+        <section class="day @(group.Key == DateTime.Today ? "today" : "")">
+            <h3>@Dk.Day(group.Key)@(late ? " · tidligere" : "")</h3>
+            @foreach (var item in group)
+            {
+                <label class="homework @(item.Done ? "done" : "") @(late && !item.Done ? "late" : "")">
+                    <input type="checkbox" checked="@item.Done" disabled="@(!item.CanCheck || _busy.Contains(Key(item)))"
+                           @onchange="e => ToggleAsync(item, (bool)e.Value!)" />
+                    <span class="text">
+                        <span class="title">@item.Title@if (item.Subject is { } s) { <span class="badge">@s</span> }</span>
+                        @if (!string.IsNullOrWhiteSpace(Summary(item))) { <span class="meta">@Summary(item)</span> }
+                        @if (_children.Count > 1) { <span class="meta">@item.ChildName</span> }
+                    </span>
+                </label>
+            }
+        </section>
+    }
+}
+
+@code {
+    private List<HomeworkItemDto> _items = [];
+    private List<(Guid Id, string Name)> _children = [];
+    private Guid? _child;
+    private bool _loading = true, _saved;
+    private string? _error;
+    private readonly HashSet<string> _busy = [];
+
+    private List<HomeworkItemDto> Shown => _items.Where(i => _child is null || i.ChildMemberId == _child).ToList();
+
+    private static string Key(HomeworkItemDto i) => $"{i.CalendarId}/{i.EventId}";
+
+    // First line of the description is the task text; the "Barn:"/"Fag:" lines are shown elsewhere.
+    private static string? Summary(HomeworkItemDto i) =>
+        i.Description?.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0 && !l.StartsWith("Barn:", StringComparison.OrdinalIgnoreCase) && !l.StartsWith("Fag:", StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        // A child sees their own homework by default.
+        _child = Session.Family.Me.Role == Role.Barn ? Session.Family.Me.Id : null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var from = Dk.Local(DateTime.Today.AddDays(-7));
+            var to = Dk.Local(DateTime.Today.AddDays(15));
+            _items = (await Api.ListHomeworkAsync(from, to, null)).ToList();
+            _children = _items.GroupBy(i => i.ChildMemberId).Select(g => (g.Key, g.First().ChildName)).OrderBy(c => c.Item2).ToList();
+            if (_child is { } c && _children.All(x => x.Id != c)) _child = null;
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private void PickChild(Guid? id) => _child = id;
+
+    private async Task ToggleAsync(HomeworkItemDto item, bool done)
+    {
+        var key = Key(item);
+        _busy.Add(key); _error = null; _saved = false;
+        var before = item.Done;
+        item.Done = done; // show the tick immediately
+        try
+        {
+            if (done) await Api.MarkHomeworkDoneAsync(item.CalendarId, item.EventId);
+            else await Api.UnmarkHomeworkDoneAsync(item.CalendarId, item.EventId);
+            _saved = true;
+        }
+        catch (Exception ex)
+        {
+            item.Done = before;
+            _error = Session.ErrorMessage(ex);
+        }
+        finally { _busy.Remove(key); }
+    }
+}
