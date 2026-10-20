@@ -59,11 +59,11 @@ internal sealed class DailyEnv
 
     public void GoToDay(DateOnly d) => Base.Time.UtcNow = new DateTimeOffset(d.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
 
-    public Task<ChecklistItemDto> AddRoutine(string user, Guid childId, RoutinePart part, string title, DaysOfWeek days = DaysOfWeek.All) =>
+    public Task<ChecklistItemDto> AddRoutine(string user, Guid childId, RoutineSlot part, string title, DaysOfWeek days = DaysOfWeek.All) =>
         Service.CreateItemAsync(user, new SaveChecklistItemRequest(ChecklistKind.Routine, part, childId, title, (int)days));
 
     public Task<ChecklistItemDto> AddTask(string user, string title, Guid? who, DaysOfWeek days = DaysOfWeek.All) =>
-        Service.CreateItemAsync(user, new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, null, who, title, (int)days));
+        Service.CreateItemAsync(user, new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, RoutineSlot.None, who, title, (int)days));
 }
 
 public class ChecklistServiceTests
@@ -73,9 +73,9 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.GoToDay(DailyEnv.Monday);
-        await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "Børst tænder");
-        await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Evening, "Pak skoletaske");
-        await env.AddRoutine(DailyEnv.Admin, env.SiblingId, RoutinePart.Morning, "Noahs rutine");
+        await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "Børst tænder");
+        await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Evening, "Pak skoletaske");
+        await env.AddRoutine(DailyEnv.Admin, env.SiblingId, RoutineSlot.Morning, "Noahs rutine");
         await env.AddTask(DailyEnv.Admin, "Smøre madpakker", env.ChildId, DaysOfWeek.Weekdays);
         await env.AddTask(DailyEnv.Admin, "Rydde køkken", null);
         await env.AddTask(DailyEnv.Admin, "Lave aftensmad", env.SiblingId);
@@ -84,7 +84,7 @@ public class ChecklistServiceTests
         var day = await env.Service.GetDayAsync(DailyEnv.Child, DailyEnv.Monday, null);
         Assert.Equal("Emma", day.MemberName);
         Assert.Equal(["Børst tænder", "Pak skoletaske", "Smøre madpakker", "Rydde køkken"], day.Entries.Select(e => e.Title));
-        Assert.Equal([RoutinePart.Morning, RoutinePart.Evening], day.Entries.Where(e => e.Part is not null).Select(e => e.Part!.Value));
+        Assert.Equal([RoutineSlot.Morning, RoutineSlot.Evening], day.Entries.Where(e => e.Part != RoutineSlot.None).Select(e => e.Part));
 
         var saturday = await env.Service.GetDayAsync(DailyEnv.Child, new DateOnly(2026, 10, 24), null);
         Assert.Equal(["Børst tænder", "Pak skoletaske", "Rydde køkken", "Støvsuge"], saturday.Entries.Select(e => e.Title));
@@ -95,7 +95,7 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.GoToDay(DailyEnv.Monday);
-        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "Børst tænder");
+        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "Børst tænder");
 
         await env.Service.SetDoneAsync(DailyEnv.Child, item.Id, DailyEnv.Monday, true);
         await env.Service.SetDoneAsync(DailyEnv.Child, item.Id, DailyEnv.Monday, true); // idempotent
@@ -118,7 +118,7 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.GoToDay(DailyEnv.Monday);
-        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Evening, "Pak taske");
+        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Evening, "Pak taske");
         await env.Service.SetDoneAsync(DailyEnv.Child, item.Id, DailyEnv.Monday.AddDays(-1), true); // yesterday: fine
         await Assert.ThrowsAsync<DomainException>(() => env.Service.SetDoneAsync(DailyEnv.Child, item.Id, DailyEnv.Monday.AddDays(-2), true));
         await Assert.ThrowsAsync<DomainException>(() => env.Service.SetDoneAsync(DailyEnv.Child, item.Id, DailyEnv.Monday.AddDays(1), true));
@@ -134,7 +134,7 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.Base.Time.UtcNow = new DateTimeOffset(2026, 10, 19, 23, 30, 0, TimeSpan.Zero); // already Tuesday 01:30 in Copenhagen
-        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Evening, "x");
+        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Evening, "x");
         await env.Service.SetDoneAsync(DailyEnv.Child, item.Id, new DateOnly(2026, 10, 20), true);
         await Assert.ThrowsAsync<DomainException>(() => env.Service.SetDoneAsync(DailyEnv.Child, item.Id, new DateOnly(2026, 10, 21), true));
     }
@@ -144,7 +144,7 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.GoToDay(DailyEnv.Monday);
-        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "x");
+        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "x");
         await Assert.ThrowsAsync<ForbiddenException>(() => env.Service.SetDoneAsync(DailyEnv.Sibling, item.Id, DailyEnv.Monday, true));
         await env.Service.SetDoneAsync(DailyEnv.Admin, item.Id, DailyEnv.Monday, true);
         var viewedByAdmin = await env.Service.GetDayAsync(DailyEnv.Admin, DailyEnv.Monday, env.ChildId);
@@ -177,8 +177,8 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.GoToDay(DailyEnv.Monday);
-        await Assert.ThrowsAsync<ForbiddenException>(() => env.AddRoutine(DailyEnv.Child, env.ChildId, RoutinePart.Morning, "x"));
-        await env.AddRoutine(DailyEnv.Admin, env.SiblingId, RoutinePart.Morning, "Noahs");
+        await Assert.ThrowsAsync<ForbiddenException>(() => env.AddRoutine(DailyEnv.Child, env.ChildId, RoutineSlot.Morning, "x"));
+        await env.AddRoutine(DailyEnv.Admin, env.SiblingId, RoutineSlot.Morning, "Noahs");
         Assert.Single((await env.Service.GetDayAsync(DailyEnv.Child, DailyEnv.Monday, env.SiblingId)).Entries);
 
         env.Base.Family.SetPermission(env.ChildId, Area.Routines, AccessLevel.None);
@@ -190,15 +190,15 @@ public class ChecklistServiceTests
     {
         var env = new DailyEnv();
         env.GoToDay(DailyEnv.Monday);
-        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "Gammel");
+        var item = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "Gammel");
         await env.Service.SetDoneAsync(DailyEnv.Child, item.Id, DailyEnv.Monday, true);
 
         var changed = await env.Service.UpdateItemAsync(DailyEnv.Admin, item.Id,
-            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutinePart.Evening, env.ChildId, "Ny", (int)DaysOfWeek.Weekdays));
+            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutineSlot.Evening, env.ChildId, "Ny", (int)DaysOfWeek.Weekdays));
         Assert.Equal("Ny", changed.Title);
-        Assert.Equal(RoutinePart.Evening, changed.Part);
+        Assert.Equal(RoutineSlot.Evening, changed.Part);
         await Assert.ThrowsAsync<DomainException>(() => env.Service.UpdateItemAsync(DailyEnv.Admin, item.Id,
-            new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, null, null, "x", 127)));
+            new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, RoutineSlot.None, null, "x", 127)));
 
         await env.Service.DeleteItemAsync(DailyEnv.Admin, item.Id);
         Assert.Empty(env.Checklist.Items);
@@ -210,13 +210,13 @@ public class ChecklistServiceTests
     public async Task Items_can_be_moved_up_and_down_within_their_list()
     {
         var env = new DailyEnv();
-        var a = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "A");
-        var b = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "B");
-        var c = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Morning, "C");
-        var evening = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutinePart.Evening, "Aften");
+        var a = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "A");
+        var b = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "B");
+        var c = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "C");
+        var evening = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Evening, "Aften");
 
         async Task<string> OrderAsync() => string.Join("", (await env.Service.ListItemsAsync(DailyEnv.Admin))
-            .Where(i => i.Part == RoutinePart.Morning).OrderBy(i => i.SortOrder).Select(i => i.Title));
+            .Where(i => i.Part == RoutineSlot.Morning).OrderBy(i => i.SortOrder).Select(i => i.Title));
 
         Assert.Equal("ABC", await OrderAsync());
         await env.Service.MoveItemAsync(DailyEnv.Admin, c.Id, up: true);
@@ -322,3 +322,4 @@ public class TodoServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() => env.TodoService.DeleteAsync(DailyEnv.Admin, todo.Id));
     }
 }
+

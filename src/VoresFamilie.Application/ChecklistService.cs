@@ -20,8 +20,8 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         RequireEditor(me);
         RequireMemberExists(family, r.MemberId);
         var all = await checklist.GetItemsAsync(family.Id, ct);
-        var next = all.Where(i => SameGroup(i, r.Kind, r.Part, r.MemberId)).Select(i => i.SortOrder).DefaultIfEmpty(-1).Max() + 1;
-        var item = ChecklistItem.Create(family.Id, r.Kind, r.Part, r.MemberId, r.Title, (DaysOfWeek)r.Days, next);
+        var next = all.Where(i => SameGroup(i, r.Kind, ToPart(r.Part), r.MemberId)).Select(i => i.SortOrder).DefaultIfEmpty(-1).Max() + 1;
+        var item = ChecklistItem.Create(family.Id, r.Kind, ToPart(r.Part), r.MemberId, r.Title, (DaysOfWeek)r.Days, next);
         await checklist.AddItemAsync(item, ct);
         await checklist.SaveChangesAsync(ct);
         return ToDto(family, item);
@@ -34,7 +34,7 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         var item = await GetOwnItemAsync(family, itemId, ct);
         if (item.Kind != r.Kind) throw new DomainException("Typen kan ikke ændres. Opret et nyt punkt.");
         RequireMemberExists(family, r.MemberId);
-        item.Apply(r.Part, r.MemberId, r.Title, (DaysOfWeek)r.Days);
+        item.Apply(ToPart(r.Part), r.MemberId, r.Title, (DaysOfWeek)r.Days);
         await checklist.SaveChangesAsync(ct);
         return ToDto(family, item);
     }
@@ -87,7 +87,7 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         var entries = items.Select(i =>
         {
             checks.TryGetValue(i.Id, out var check);
-            return new ChecklistEntryDto(i.Id, i.Kind, i.Part, i.Title, i.MemberId, NameOf(family, i.MemberId),
+            return new ChecklistEntryDto(i.Id, i.Kind, ToSlot(i.Part), i.Title, i.MemberId, NameOf(family, i.MemberId),
                 check is not null, check?.CompletedAt, NameOf(family, check?.CompletedByMemberId),
                 canTickDate && ChecklistRules.CanCheck(me, i));
         }).ToList();
@@ -151,6 +151,21 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         memberId is null ? null : family.Members.FirstOrDefault(m => m.Id == memberId)?.DisplayName;
 
     private static ChecklistItemDto ToDto(Family family, ChecklistItem i) =>
-        new(i.Id, i.Kind, i.Part, i.MemberId, NameOf(family, i.MemberId), i.Title, (int)i.Days, i.SortOrder);
+        new(i.Id, i.Kind, ToSlot(i.Part), i.MemberId, NameOf(family, i.MemberId), i.Title, (int)i.Days, i.SortOrder);
+
+    private static RoutinePart? ToPart(RoutineSlot slot) => slot switch
+    {
+        RoutineSlot.Morning => RoutinePart.Morning,
+        RoutineSlot.Evening => RoutinePart.Evening,
+        _ => null,
+    };
+
+    private static RoutineSlot ToSlot(RoutinePart? part) => part switch
+    {
+        RoutinePart.Morning => RoutineSlot.Morning,
+        RoutinePart.Evening => RoutineSlot.Evening,
+        _ => RoutineSlot.None,
+    };
 }
+
 

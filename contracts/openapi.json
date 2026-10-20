@@ -1529,14 +1529,7 @@
             "$ref": "#/components/schemas/ChecklistKind"
           },
           "part": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/RoutinePart"
-              }
-            ]
+            "$ref": "#/components/schemas/RoutineSlot"
           },
           "title": {
             "type": "string"
@@ -1596,14 +1589,7 @@
             "$ref": "#/components/schemas/ChecklistKind"
           },
           "part": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/RoutinePart"
-              }
-            ]
+            "$ref": "#/components/schemas/RoutineSlot"
           },
           "memberId": {
             "type": [
@@ -2032,12 +2018,13 @@
         ],
         "type": "string"
       },
-      "RoutinePart": {
+      "RoutineSlot": {
         "enum": [
+          "None",
           "Morning",
-          "Evening",
-          null
-        ]
+          "Evening"
+        ],
+        "type": "string"
       },
       "SaveChecklistItemRequest": {
         "required": [
@@ -2053,14 +2040,7 @@
             "$ref": "#/components/schemas/ChecklistKind"
           },
           "part": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/RoutinePart"
-              }
-            ]
+            "$ref": "#/components/schemas/RoutineSlot"
           },
           "memberId": {
             "type": [

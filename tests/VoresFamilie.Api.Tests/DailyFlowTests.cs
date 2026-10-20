@@ -42,10 +42,10 @@ public class DailyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         // Admin builds the lists.
         var routine = await (await admin.PostAsync("/api/checklist-items",
-            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutinePart.Morning, emma.Id, "Børst tænder", (int)DaysOfWeek.All))).ReadAsync<ChecklistItemDto>();
+            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutineSlot.Morning, emma.Id, "Børst tænder", (int)DaysOfWeek.All))).ReadAsync<ChecklistItemDto>();
         await admin.PostAsync("/api/checklist-items",
-            new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, null, null, "Rydde køkken", (int)DaysOfWeek.All));
-        var tomorrowOnly = new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, null, emma.Id, "Madpakker", (int)ToFlag(Today.AddDays(1).DayOfWeek));
+            new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, RoutineSlot.None, null, "Rydde køkken", (int)DaysOfWeek.All));
+        var tomorrowOnly = new SaveChecklistItemRequest(ChecklistKind.HouseholdTask, RoutineSlot.None, emma.Id, "Madpakker", (int)ToFlag(Today.AddDays(1).DayOfWeek));
         await admin.PostAsync("/api/checklist-items", tomorrowOnly);
 
         // Child cannot edit.
@@ -92,4 +92,5 @@ public class DailyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
     private static DaysOfWeek ToFlag(DayOfWeek d) => DaysOfWeekExtensions.ToFlag(d);
 }
+
 

@@ -140,3 +140,20 @@ code { background: #eef0f6; padding: .1rem .3rem; border-radius: .25rem; }
 .homework.late { border-left: 4px solid #c0262d; }
 textarea { font: inherit; padding: .6rem; border: 1px solid #c9ceda; border-radius: .5rem; }
 
+
+/* --- Routines, tasks, todo --- */
+.checklist { background: #fff; border-radius: .75rem; padding: .5rem .75rem; margin: .75rem 0; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.checklist summary { cursor: pointer; padding: .4rem 0; }
+.checklist .homework { box-shadow: none; padding: .6rem 0; margin: 0; border-top: 1px solid #eef0f6; border-radius: 0; background: none; }
+.item-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .4rem 0; border-top: 1px solid #eef0f6; }
+.item-row .text { display: flex; flex-direction: column; }
+.item-row .meta, .todo .meta { color: #667085; font-size: .8rem; }
+.actions { display: inline-flex; flex: none; }
+.actions button { padding: .25rem .5rem; }
+.grow { flex: 1; min-width: 0; }
+.todo { display: flex; }
+.todo .text { flex: 1; }
+.overdue { color: #c0262d !important; font-weight: 600; }
+.daypicker { align-items: center; }
+.daypicker .chip { opacity: .55; padding: .3rem .55rem; }
+.daypicker .chip.on { opacity: 1; background: #e8f0fe; }

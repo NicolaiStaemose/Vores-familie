@@ -1,0 +1,25 @@
+﻿@* Seven weekday toggles that make up a bit mask (Monday=1 ... Sunday=64). Use with @bind-Value. *@
+
+<div class="chips daypicker" role="group" aria-label="Ugedage">
+    @for (var i = 0; i < 7; i++)
+    {
+        var bit = 1 << i;
+        var on = (Value & bit) != 0;
+        <button type="button" class="chip @(on ? "on" : "")" aria-pressed="@on" @onclick="() => Toggle(bit)">@Dk.DayShortNames[i]</button>
+    }
+    <button type="button" class="link" @onclick="() => Set(31)">Hverdage</button>
+    <button type="button" class="link" @onclick="() => Set(127)">Alle</button>
+</div>
+
+@code {
+    [Parameter] public int Value { get; set; } = 127;
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+
+    private Task Toggle(int bit) => Set(Value ^ bit);
+
+    private Task Set(int value)
+    {
+        Value = value;
+        return ValueChanged.InvokeAsync(value);
+    }
+}
