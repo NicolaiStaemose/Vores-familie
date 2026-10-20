@@ -69,7 +69,7 @@ else
 {
     @foreach (var t in _todos)
     {
-        <div class="homework todo @(t.IsDone ? "done" : "")">
+        <div class="homework todo @(t.IsDone ? "done" : "")" @key="t.Id">
             <input type="checkbox" checked="@t.IsDone" disabled="@(!t.CanCheck)" @onchange="e => TickAsync(t, (bool)e.Value!)" aria-label="Færdig" />
             <span class="text">
                 <span class="title">@t.Title@if (t.AssigneeName is { } who) { <span class="badge">@who</span> }</span>
@@ -195,3 +195,4 @@ else
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 }
+

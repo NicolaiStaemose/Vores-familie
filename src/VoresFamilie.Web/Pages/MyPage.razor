@@ -58,7 +58,7 @@
         <summary><strong>ToDo</strong> <span class="muted small">@_myTodos.Count åbne · <a href="todo">Se alle</a></span></summary>
         @foreach (var todo in _myTodos)
         {
-            <label class="homework">
+            <label class="homework" @key="todo.Id">
                 <input type="checkbox" checked="@false" disabled="@(!todo.CanCheck)" @onchange="e => TickTodoAsync(todo, (bool)e.Value!)" />
                 <span class="text">
                     <span class="title">@todo.Title</span>
@@ -268,5 +268,6 @@ else
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 }
+
 
 

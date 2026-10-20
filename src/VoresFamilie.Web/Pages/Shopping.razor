@@ -74,17 +74,20 @@ else
 {
     @foreach (var category in Dk.CategoryOrder)
     {
-        var open = _items.Where(i => !i.IsBought && i.Category == category).ToList();
-        if (open.Count == 0) { continue; }
+        // Items stay where they are when ticked (so the list does not jump around in the shop); "Ryd købte" removes them.
+        var inCategory = _items.Where(i => i.Category == category).OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        if (inCategory.Count == 0) { continue; }
         <section class="shop-group">
             <h3>@Dk.CategoryName(category)</h3>
-            @foreach (var item in open)
+            @foreach (var item in inCategory)
             {
-                <div class="homework shop">
-                    <input type="checkbox" checked="@false" disabled="@(!CanEdit || _pending.Contains(item.Id))" aria-label="Købt"
-                           @onchange="() => BuyAsync(item, true)" />
+                // @key makes Blazor keep each checkbox with its own item when the list changes.
+                <div class="homework shop @(item.IsBought ? "done" : "")" @key="item.Id">
+                    <input type="checkbox" checked="@item.IsBought" disabled="@(!CanEdit || _pending.Contains(item.Id))"
+                           aria-label="@(item.IsBought ? "Fortryd køb" : "Købt")" @onchange="e => BuyAsync(item, (bool)e.Value!)" />
                     <span class="text">
                         <span class="title">@item.Name@if (!string.IsNullOrEmpty(item.Quantity)) { <span class="badge">@item.Quantity</span> }</span>
+                        @if (item.IsBought && item.BoughtByName is { } who) { <span class="meta">Købt af @who</span> }
                     </span>
                     @if (CanEdit)
                     {
@@ -98,22 +101,9 @@ else
         </section>
     }
 
-    @if (_items.Any(i => i.IsBought))
+    @if (CanEdit && _items.Any(i => i.IsBought))
     {
-        <details class="checklist">
-            <summary><strong>Købt</strong> <span class="muted small">@_items.Count(i => i.IsBought)</span></summary>
-            @foreach (var item in _items.Where(i => i.IsBought))
-            {
-                <div class="homework shop done">
-                    <input type="checkbox" checked="@true" disabled="@(!CanEdit)" aria-label="Fortryd køb" @onchange="() => BuyAsync(item, false)" />
-                    <span class="text">
-                        <span class="title">@item.Name@if (!string.IsNullOrEmpty(item.Quantity)) { <span class="badge">@item.Quantity</span> }</span>
-                        @if (item.BoughtByName is { } who) { <span class="meta">Købt af @who</span> }
-                    </span>
-                </div>
-            }
-            @if (CanEdit) { <button class="link danger" @onclick="ClearBoughtAsync">Ryd købte</button> }
-        </details>
+        <button class="primary" @onclick="ClearBoughtAsync">Ryd købte (@_items.Count(i => i.IsBought))</button>
     }
 }
 

@@ -5,7 +5,7 @@
     <summary><strong>@Title</strong> <span class="muted small">@Done af @Entries.Count@(Done == Entries.Count && Entries.Count > 0 ? " ✓" : "")</span></summary>
     @foreach (var e in Entries)
     {
-        <label class="homework @(e.Done ? "done" : "")">
+        <label class="homework @(e.Done ? "done" : "")" @key="e.ItemId">
             <input type="checkbox" checked="@e.Done" disabled="@(!e.CanCheck || Busy.Contains(e.ItemId))"
                    @onchange="ev => OnToggle.InvokeAsync((e, (bool)ev.Value!))" />
             @if (e.Icon is { Length: > 0 } icon) { <span class="ico" aria-hidden="true">@Emojis.Show(icon)</span> }
@@ -30,6 +30,7 @@
     // When some points have an icon and others not, keep the text lined up.
     private bool AnyIcon => Entries.Any(e => e.Icon is { Length: > 0 });
 }
+
 
 
 
