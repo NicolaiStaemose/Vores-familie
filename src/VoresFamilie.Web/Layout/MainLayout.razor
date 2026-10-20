@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
 @inject Session Session
+@inject Emojis Emojis
 @inject NavigationManager Nav
 
 <header class="topbar">
@@ -30,6 +31,7 @@
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += StateHasChanged;
+        await Emojis.InitAsync();
         await Session.RefreshAsync();
     }
 
@@ -41,6 +43,7 @@
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 }
+
 
 
 

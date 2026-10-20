@@ -15,6 +15,9 @@ public static class DailyEndpoints
             await s.ListItemsAsync(u.GetUserId(p)!, ct))
             .WithName("ListChecklistItems").Produces<IReadOnlyList<ChecklistItemDto>>();
 
+        g.MapGet("/checklist-items/icon-suggestion", (string? title) => ChecklistService.SuggestIcon(title))
+            .WithName("SuggestChecklistIcon").Produces<IconSuggestionDto>();
+
         g.MapPost("/checklist-items", async (SaveChecklistItemRequest r, ClaimsPrincipal p, UserManager<IdentityUser> u, ChecklistService s, CancellationToken ct) =>
             Results.Ok(await s.CreateItemAsync(u.GetUserId(p)!, r, ct)))
             .WithName("CreateChecklistItem").Produces<ChecklistItemDto>();
@@ -74,3 +77,4 @@ public static class DailyEndpoints
             .WithName("ClearCompletedTodos").Produces<int>();
     }
 }
+

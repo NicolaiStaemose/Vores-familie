@@ -229,6 +229,33 @@ public class ChecklistServiceTests
     }
 
     [Fact]
+    public async Task Icons_are_suggested_automatically_and_an_admin_can_override_them()
+    {
+        var env = new DailyEnv();
+        env.GoToDay(DailyEnv.Monday);
+        var auto = await env.AddRoutine(DailyEnv.Admin, env.ChildId, RoutineSlot.Morning, "Børste tænder");
+        Assert.Equal("🪥", auto.Icon);
+        Assert.Null(auto.CustomIcon);
+
+        var custom = await env.Service.UpdateItemAsync(DailyEnv.Admin, auto.Id,
+            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutineSlot.Morning, env.ChildId, "Børste tænder", 127, "⭐"));
+        Assert.Equal(("⭐", "⭐"), (custom.Icon, custom.CustomIcon));
+        Assert.Equal("⭐", (await env.Service.GetDayAsync(DailyEnv.Child, DailyEnv.Monday, null)).Entries.Single().Icon);
+
+        var none = await env.Service.UpdateItemAsync(DailyEnv.Admin, auto.Id,
+            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutineSlot.Morning, env.ChildId, "Børste tænder", 127, ""));
+        Assert.Null(none.Icon);
+        Assert.Equal("", none.CustomIcon);
+
+        var back = await env.Service.UpdateItemAsync(DailyEnv.Admin, auto.Id,
+            new SaveChecklistItemRequest(ChecklistKind.Routine, RoutineSlot.Morning, env.ChildId, "Vaske sig", 127, null));
+        Assert.Equal("🧼", back.Icon); // automatic again, and it follows the new text
+
+        Assert.Equal("🥣", ChecklistService.SuggestIcon("Spise morgenmad").Icon);
+        Assert.Null(ChecklistService.SuggestIcon("???").Icon);
+    }
+
+    [Fact]
     public async Task Cannot_assign_to_someone_outside_the_family()
     {
         var env = new DailyEnv();
@@ -322,4 +349,5 @@ public class TodoServiceTests
         await Assert.ThrowsAsync<NotFoundException>(() => env.TodoService.DeleteAsync(DailyEnv.Admin, todo.Id));
     }
 }
+
 

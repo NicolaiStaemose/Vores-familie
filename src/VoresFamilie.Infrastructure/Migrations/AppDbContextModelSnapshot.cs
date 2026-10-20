@@ -307,6 +307,10 @@ namespace VoresFamilie.Infrastructure.Migrations
                     b.Property<Guid>("FamilyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Icon")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<int>("Kind")
                         .HasColumnType("int");
 

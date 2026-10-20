@@ -21,7 +21,7 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         RequireMemberExists(family, r.MemberId);
         var all = await checklist.GetItemsAsync(family.Id, ct);
         var next = all.Where(i => SameGroup(i, r.Kind, ToPart(r.Part), r.MemberId)).Select(i => i.SortOrder).DefaultIfEmpty(-1).Max() + 1;
-        var item = ChecklistItem.Create(family.Id, r.Kind, ToPart(r.Part), r.MemberId, r.Title, (DaysOfWeek)r.Days, next);
+        var item = ChecklistItem.Create(family.Id, r.Kind, ToPart(r.Part), r.MemberId, r.Title, (DaysOfWeek)r.Days, next, r.Icon);
         await checklist.AddItemAsync(item, ct);
         await checklist.SaveChangesAsync(ct);
         return ToDto(family, item);
@@ -34,7 +34,7 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         var item = await GetOwnItemAsync(family, itemId, ct);
         if (item.Kind != r.Kind) throw new DomainException("Typen kan ikke ændres. Opret et nyt punkt.");
         RequireMemberExists(family, r.MemberId);
-        item.Apply(ToPart(r.Part), r.MemberId, r.Title, (DaysOfWeek)r.Days);
+        item.Apply(ToPart(r.Part), r.MemberId, r.Title, (DaysOfWeek)r.Days, r.Icon);
         await checklist.SaveChangesAsync(ct);
         return ToDto(family, item);
     }
@@ -89,7 +89,7 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
             checks.TryGetValue(i.Id, out var check);
             return new ChecklistEntryDto(i.Id, i.Kind, ToSlot(i.Part), i.Title, i.MemberId, NameOf(family, i.MemberId),
                 check is not null, check?.CompletedAt, NameOf(family, check?.CompletedByMemberId),
-                canTickDate && ChecklistRules.CanCheck(me, i));
+                canTickDate && ChecklistRules.CanCheck(me, i), ChecklistIcons.Effective(i.Icon, i.Title));
         }).ToList();
         return new ChecklistDayDto(date, target.Id, target.DisplayName, canTickDate, entries);
     }
@@ -110,6 +110,9 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
             await checklist.RemoveCheckAsync(existing, ct);
         await checklist.SaveChangesAsync(ct);
     }
+
+    /// <summary>The icon that would be used automatically for a text (used to preview while typing).</summary>
+    public static IconSuggestionDto SuggestIcon(string? title) => new(ChecklistIcons.Suggest(title));
 
     // ---- helpers ----
 
@@ -151,7 +154,8 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         memberId is null ? null : family.Members.FirstOrDefault(m => m.Id == memberId)?.DisplayName;
 
     private static ChecklistItemDto ToDto(Family family, ChecklistItem i) =>
-        new(i.Id, i.Kind, ToSlot(i.Part), i.MemberId, NameOf(family, i.MemberId), i.Title, (int)i.Days, i.SortOrder);
+        new(i.Id, i.Kind, ToSlot(i.Part), i.MemberId, NameOf(family, i.MemberId), i.Title, (int)i.Days, i.SortOrder,
+            ChecklistIcons.Effective(i.Icon, i.Title), i.Icon);
 
     private static RoutinePart? ToPart(RoutineSlot slot) => slot switch
     {
@@ -167,5 +171,6 @@ public sealed class ChecklistService(IFamilyRepository families, IChecklistRepos
         _ => RoutineSlot.None,
     };
 }
+
 
 

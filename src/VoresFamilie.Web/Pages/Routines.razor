@@ -2,6 +2,7 @@
 @inherits SessionComponent
 @inject IApiClient Api
 @inject IJSRuntime JS
+@inject Emojis Emojis
 
 <h1>Rutiner og opgaver</h1>
 
@@ -71,7 +72,22 @@ else
 {
     <section class="card" id="item-form">
         <h2>@(_form.Id is null ? "Nyt punkt" : "Redigér punkt")</h2>
-        <label>Tekst <input @bind="_form.Title" maxlength="200" /></label>
+        <label>Tekst <input @bind="_form.Title" @bind:event="oninput" @bind:after="SuggestAsync" maxlength="200" /></label>
+        <div>
+            Ikon
+            <div class="chips">
+                <button type="button" class="chip @(_form.Icon is null ? "on" : "")" aria-pressed="@(_form.Icon is null)" @onclick="() => _form.Icon = null">
+                    Automatisk @(string.IsNullOrEmpty(_suggested) ? "(intet forslag)" : Emojis.Show(_suggested))
+                </button>
+                <button type="button" class="chip @(_form.Icon == string.Empty ? "on" : "")" aria-pressed="@(_form.Icon == string.Empty)" @onclick="() => _form.Icon = string.Empty">Ingen</button>
+            </div>
+            <div class="emoji-grid" role="group" aria-label="Vælg ikon">
+                @foreach (var e in Palette.Where(Emojis.CanShow))
+                {
+                    <button type="button" class="emoji @(_form.Icon == e ? "on" : "")" aria-pressed="@(_form.Icon == e)" @onclick="() => _form.Icon = e">@e</button>
+                }
+            </div>
+        </div>
         @if (_form.Kind == ChecklistKind.HouseholdTask)
         {
             <label>Ansvarlig
@@ -115,6 +131,32 @@ else
         public Guid? MemberId;
         public string Title = "";
         public int Days = 127;
+        /// <summary>null = automatic (suggested from the text), empty = no icon, otherwise an emoji.</summary>
+        public string? Icon;
+    }
+
+    private static readonly string[] Palette =
+    [
+        "🪥", "🦷", "🧼", "🚿", "🚽", "💇", "👕", "🧥", "👟", "🥣", "🥪", "🥤", "🍳", "💊", "🎒", "📱", "🛏️", "📚",
+        "🍽️", "🍴", "🧹", "🧺", "🗑️", "🌱", "🐕", "🐈", "🛒", "⭐", "❤️", "✅", "⏰", "🎵", "⚽", "🧸",
+    ];
+
+    private string? _suggested;
+    private CancellationTokenSource? _suggestCts;
+
+    // Looks up the automatic icon for the text while typing (after a short pause).
+    private async Task SuggestAsync()
+    {
+        _suggestCts?.Cancel();
+        _suggestCts = new CancellationTokenSource();
+        var token = _suggestCts.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            _suggested = (await Api.SuggestChecklistIconAsync(_form?.Title ?? "", token)).Icon;
+        }
+        catch (OperationCanceledException) { /* a newer keystroke replaced this lookup */ }
+        catch (Exception) { _suggested = null; }
     }
 
     private List<ChecklistItemDto> _items = [];
@@ -153,14 +195,15 @@ else
 
     private void StartNew(ChecklistKind kind, RoutineSlot part)
     {
-        _formError = null;
+        _formError = null; _suggested = null;
         _form = new Form { Kind = kind, Part = part, MemberId = kind == ChecklistKind.Routine ? _child : null };
     }
 
     private void Edit(ChecklistItemDto i)
     {
-        _formError = null;
-        _form = new Form { Id = i.Id, Kind = i.Kind, Part = i.Part, MemberId = i.MemberId, Title = i.Title, Days = i.Days };
+        _formError = null; _suggested = null;
+        _form = new Form { Id = i.Id, Kind = i.Kind, Part = i.Part, MemberId = i.MemberId, Title = i.Title, Days = i.Days, Icon = i.CustomIcon };
+        _ = SuggestAsync();
     }
 
     private async Task SaveAsync()
@@ -168,7 +211,7 @@ else
         if (_form is null) return;
         if (string.IsNullOrWhiteSpace(_form.Title)) { _formError = "Skriv en tekst."; return; }
         if (_form.Days == 0) { _formError = "Vælg mindst én ugedag."; return; }
-        var body = new SaveChecklistItemRequest { Kind = _form.Kind, Part = _form.Part, MemberId = _form.MemberId, Title = _form.Title.Trim(), Days = _form.Days };
+        var body = new SaveChecklistItemRequest { Kind = _form.Kind, Part = _form.Part, MemberId = _form.MemberId, Title = _form.Title.Trim(), Days = _form.Days, Icon = _form.Icon };
         _saving = true; _error = null;
         try
         {
@@ -196,3 +239,6 @@ else
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 }
+
+
+

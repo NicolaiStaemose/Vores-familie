@@ -930,6 +930,35 @@
         }
       }
     },
+    "/api/checklist-items/icon-suggestion": {
+      "get": {
+        "tags": [
+          "Daily"
+        ],
+        "operationId": "SuggestChecklistIcon",
+        "parameters": [
+          {
+            "name": "title",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IconSuggestionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/checklist-items/{id}": {
       "put": {
         "tags": [
@@ -1517,7 +1546,8 @@
           "done",
           "completedAt",
           "completedByName",
-          "canCheck"
+          "canCheck",
+          "icon"
         ],
         "type": "object",
         "properties": {
@@ -1565,6 +1595,12 @@
           },
           "canCheck": {
             "type": "boolean"
+          },
+          "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1577,7 +1613,9 @@
           "memberName",
           "title",
           "days",
-          "sortOrder"
+          "sortOrder",
+          "icon",
+          "customIcon"
         ],
         "type": "object",
         "properties": {
@@ -1622,6 +1660,18 @@
               "string"
             ],
             "format": "int32"
+          },
+          "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customIcon": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -1880,6 +1930,20 @@
           }
         }
       },
+      "IconSuggestionDto": {
+        "required": [
+          "icon"
+        ],
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "InvitationDto": {
         "required": [
           "id",
@@ -2059,6 +2123,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "icon": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

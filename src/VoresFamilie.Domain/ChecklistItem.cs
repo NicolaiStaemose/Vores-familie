@@ -22,16 +22,18 @@ public sealed class ChecklistItem
     public string Title { get; private set; } = "";
     public DaysOfWeek Days { get; private set; } = DaysOfWeek.All;
     public int SortOrder { get; private set; }
+    /// <summary>null = automatic (suggested from the title), empty = no icon, otherwise an emoji chosen by an admin.</summary>
+    public string? Icon { get; private set; }
 
     public static ChecklistItem Create(Guid familyId, ChecklistKind kind, RoutinePart? part, Guid? memberId,
-        string title, DaysOfWeek days, int sortOrder)
+        string title, DaysOfWeek days, int sortOrder, string? icon = null)
     {
         var item = new ChecklistItem { Id = Guid.NewGuid(), FamilyId = familyId, Kind = kind, SortOrder = sortOrder };
-        item.Apply(part, memberId, title, days);
+        item.Apply(part, memberId, title, days, icon);
         return item;
     }
 
-    public void Apply(RoutinePart? part, Guid? memberId, string title, DaysOfWeek days)
+    public void Apply(RoutinePart? part, Guid? memberId, string title, DaysOfWeek days, string? icon)
     {
         if (string.IsNullOrWhiteSpace(title)) throw new DomainException("Punktet skal have en tekst.");
         if (days == DaysOfWeek.None) throw new DomainException("Vælg mindst én ugedag.");
@@ -44,9 +46,11 @@ public sealed class ChecklistItem
         MemberId = memberId;
         Title = title.Trim();
         Days = days;
+        Icon = ChecklistIcons.Normalize(icon);
     }
 
     public void MoveTo(int sortOrder) => SortOrder = sortOrder;
 
     public bool IsDueOn(DateOnly date) => Days.Includes(date.DayOfWeek);
 }
+

@@ -7,14 +7,18 @@ namespace VoresFamilie.Application;
 public enum RoutineSlot { None, Morning, Evening }
 
 public sealed record ChecklistItemDto(Guid Id, ChecklistKind Kind, RoutineSlot Part, Guid? MemberId, string? MemberName,
-    string Title, int Days, int SortOrder);
+    string Title, int Days, int SortOrder,
+    string? Icon, string? CustomIcon);
 
-public sealed record SaveChecklistItemRequest(ChecklistKind Kind, RoutineSlot Part, Guid? MemberId, string Title, int Days);
+/// <summary>Icon: null = automatic (suggested from the text), empty = no icon, otherwise an emoji.</summary>
+public sealed record SaveChecklistItemRequest(ChecklistKind Kind, RoutineSlot Part, Guid? MemberId, string Title, int Days, string? Icon = null);
+
+public sealed record IconSuggestionDto(string? Icon);
 
 public sealed record MoveChecklistItemRequest(bool Up);
 
 public sealed record ChecklistEntryDto(Guid ItemId, ChecklistKind Kind, RoutineSlot Part, string Title, Guid? MemberId,
-    string? MemberName, bool Done, DateTimeOffset? CompletedAt, string? CompletedByName, bool CanCheck);
+    string? MemberName, bool Done, DateTimeOffset? CompletedAt, string? CompletedByName, bool CanCheck, string? Icon);
 
 public sealed record ChecklistDayDto(DateOnly Date, Guid MemberId, string MemberName, bool CanTickDate, IReadOnlyList<ChecklistEntryDto> Entries);
 
@@ -24,4 +28,5 @@ public sealed record TodoDto(Guid Id, string Title, string? Notes, Guid? Assigne
     bool IsDone, DateTimeOffset? CompletedAt, string? CompletedByName, bool IsOverdue, bool CanCheck);
 
 public sealed record SaveTodoRequest(string Title, string? Notes, Guid? AssigneeMemberId, DateOnly? DueDate);
+
 

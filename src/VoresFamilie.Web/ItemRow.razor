@@ -1,4 +1,6 @@
-﻿<div class="item-row">
+﻿@inject Emojis Emojis
+<div class="item-row">
+    @if (Item.Icon is { Length: > 0 } icon) { <span class="ico" aria-hidden="true">@Emojis.Show(icon)</span> }
     <span class="text">
         <span class="title">@Item.Title</span>
         <span class="meta">@Dk.DaysText(Item.Days)@(ShowOwner ? " · " + (Item.MemberName ?? "Alle") : "")</span>
@@ -20,3 +22,5 @@
     [Parameter] public EventCallback<ChecklistItemDto> OnEdit { get; set; }
     [Parameter] public EventCallback<ChecklistItemDto> OnDelete { get; set; }
 }
+
+

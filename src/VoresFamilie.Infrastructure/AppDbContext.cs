@@ -79,6 +79,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             e.Property(i => i.Id).ValueGeneratedNever();
             e.Property(i => i.Title).HasMaxLength(200).IsRequired();
             e.Property(i => i.Days).HasConversion<int>();
+            e.Property(i => i.Icon).HasMaxLength(ChecklistIcons.MaxLength);
             e.HasIndex(i => new { i.FamilyId, i.Kind, i.MemberId });
         });
 
@@ -146,6 +147,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         return new MemberPermissions(j.Levels, j.CanCheckOwnItems);
     }
 }
+
 
 
 
