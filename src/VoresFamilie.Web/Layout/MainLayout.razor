@@ -8,6 +8,13 @@
     @if (Session.IsSignedIn)
     {
         <nav>
+            @if (Session.Family is not null)
+            {
+                <a href="min-side">Min side</a>
+                <a href="kalender">Kalender</a>
+                <a href="lektier">Lektier</a>
+                <a href="indstillinger/google">Google</a>
+            }
             @if (Session.IsAdmin) { <a href="admin">Admin</a> }
             <button class="link" @onclick="LogoutAsync">Log ud</button>
         </nav>
@@ -32,3 +39,5 @@
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 }
+
+

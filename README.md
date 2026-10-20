@@ -2,7 +2,7 @@
 
 Familieapp (Android, installeret PWA): fælles kalender, lektier, opgaver, madplan m.m. Se [CLAUDE.md](CLAUDE.md) for mål, stack og faser.
 
-**Status: fase 1** – login (e-mail/Google), familier, invitationer og admin-side med rettigheder.
+**Status: fase 2** – login, familier og rettigheder (fase 1) samt kalendere med tovejs-synk til Google Kalender og lektier, der kan afkrydses (fase 2).
 
 ## Arkitektur
 
@@ -30,6 +30,10 @@ Valgfrit Google-login: kopiér `.env.example` til `.env` og udfyld `GOOGLE_CLIEN
 
 Uden Docker: `dotnet user-secrets` i `src/VoresFamilie.Api` og `dotnet run`.
 
+## Kalendere og Google
+
+Se [docs/google-setup.md](docs/google-setup.md). I Development kører API'et som standard med en indbygget demo-Google (`Google:Mode=Fake`), så kalender og lektier kan prøves uden Google-konto. `https://localhost:7222/scalar` viser og tester API'et.
+
 ## Test
 
 ```bash
@@ -45,3 +49,4 @@ dotnet test VoresFamilie.slnx
 ## Sikkerhed
 
 Cookie-login (HttpOnly, SameSite=Lax). API'et accepterer kun JSON og har ingen CORS, så andre sites ikke kan sende state-ændrende kald; yderligere antiforgery kan tilføjes senere.
+

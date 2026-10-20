@@ -21,6 +21,7 @@
     <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)\..\..\contracts</OpenApiDocumentsDirectory>
     <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>66dc0fed-a211-4338-a90e-19d8fc23473d</UserSecretsId>
   </PropertyGroup>
 
 </Project>

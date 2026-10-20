@@ -1,0 +1,185 @@
+﻿@page "/indstillinger/google"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<h1>Google Kalender</h1>
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/indstillinger/google" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+@if (Message is { } msg) { <p class="@msg.Css">@msg.Text</p> }
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@if (_status is null)
+{
+    <p class="muted">Henter…</p>
+}
+else if (!_status.Configured)
+{
+    <div class="card">
+        <p><strong>Google Kalender er ikke sat op på serveren endnu.</strong></p>
+        <p class="muted">Se <code>docs/google-setup.md</code> i projektet. Når client id og secret er lagt i konfigurationen, kan du forbinde her.</p>
+    </div>
+}
+else if (!_status.Connected)
+{
+    <div class="card">
+        <p>Forbind din Google-konto for at vise kalendere i appen.</p>
+        <p class="muted small">Første gang viser Google en advarsel om, at appen ikke er verificeret. Vælg "Avanceret" og derefter "Fortsæt".</p>
+        <a class="button primary" href="@ConnectUrl">Forbind Google Kalender</a>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="row"><span>✓ Din Google-konto er forbundet.</span>
+            <button class="link danger" @onclick="DisconnectAsync">Afbryd</button></div>
+    </div>
+
+    <h2>Tilføj kalender</h2>
+    @if (_google.Count == 0) { <p class="muted">Ingen kalendere fundet på din Google-konto.</p> }
+    @foreach (var g in _google)
+    {
+        <section class="card">
+            <div class="row">
+                <strong><span class="dot" style="--c:@(g.Color ?? "#1b6ef3")"></span> @g.Name</strong>
+                @if (g.AlreadyAdded) { <span class="muted">Tilføjet</span> }
+            </div>
+            @if (!g.AlreadyAdded)
+            {
+                var o = Option(g.Id);
+                <div class="grid">
+                    <label>Type
+                        <select value="@o.Kind" @onchange="e => { o.Kind = Enum.Parse<CalendarKind>(e.Value!.ToString()!); if (o.Kind == CalendarKind.Family) o.Owner = null; else o.Owner ??= DefaultOwner; }">
+                            @if (Session.IsAdmin) { <option value="@CalendarKind.Family">Fælles</option> }
+                            <option value="@CalendarKind.Personal">Personlig</option>
+                            @if (Session.IsAdmin) { <option value="@CalendarKind.Homework">Lektier</option> }
+                            @if (Session.IsAdmin) { <option value="@CalendarKind.Schedule">Skema</option> }
+                        </select>
+                    </label>
+                    @if (o.Kind != CalendarKind.Family)
+                    {
+                        <label>Tilhører
+                            <select @bind="o.Owner" disabled="@(!Session.IsAdmin)">
+                                @foreach (var m in _members) { <option value="@m.Id">@m.DisplayName</option> }
+                            </select>
+                        </label>
+                    }
+                </div>
+                <button class="primary" disabled="@_busy" @onclick="() => AddAsync(g, o)">Tilføj</button>
+            }
+        </section>
+    }
+}
+
+@if (_calendars.Count > 0)
+{
+    <h2>Kalendere i appen</h2>
+    @foreach (var c in _calendars)
+    {
+        <div class="card row">
+            <span><span class="dot" style="--c:@c.Color"></span> @c.Name
+                <span class="muted small">· @KindName(c.Kind)@(c.OwnerName is { } on ? $" · {on}" : "")</span></span>
+            @if (Session.IsAdmin || (c.Kind == CalendarKind.Personal && c.OwnerMemberId == Session.Family.Me.Id))
+            {
+                <button class="link danger" @onclick="() => RemoveAsync(c)">Fjern</button>
+            }
+        </div>
+    }
+}
+
+@code {
+    private sealed class AddOptions
+    {
+        public CalendarKind Kind;
+        public Guid? Owner;
+    }
+
+    private GoogleStatusDto? _status;
+    private List<GoogleCalendarDto> _google = [];
+    private List<CalendarDto> _calendars = [];
+    private List<MemberDto> _members = [];
+    private readonly Dictionary<string, AddOptions> _options = [];
+    private bool _busy;
+    private string? _error;
+
+    private Guid? DefaultOwner => Session.Family?.Me.Id;
+
+    private AddOptions Option(string id)
+    {
+        if (!_options.TryGetValue(id, out var o))
+            _options[id] = o = new AddOptions { Kind = Session.IsAdmin ? CalendarKind.Family : CalendarKind.Personal, Owner = Session.IsAdmin ? null : DefaultOwner };
+        return o;
+    }
+
+    private string ConnectUrl =>
+        $"{Http.BaseAddress}api/google/connect?returnUrl={Uri.EscapeDataString(Nav.BaseUri + "indstillinger/google")}";
+
+    private (string Text, string Css)? Message => Nav.ToAbsoluteUri(Nav.Uri).Query.Contains("google=") switch
+    {
+        true when Nav.Uri.Contains("google=forbundet") => ("Google er forbundet.", "info"),
+        true when Nav.Uri.Contains("google=afbrudt") => ("Forbindelsen blev afbrudt. Prøv igen, hvis du vil forbinde.", "error"),
+        true when Nav.Uri.Contains("google=ikke-sat-op") => ("Google Kalender er ikke sat op på serveren endnu.", "error"),
+        true => ("Det lykkedes ikke at forbinde til Google. Prøv igen.", "error"),
+        _ => null,
+    };
+
+    private static string KindName(CalendarKind k) => k switch { CalendarKind.Family => "Fælles", CalendarKind.Personal => "Personlig", CalendarKind.Schedule => "Skema", _ => "Lektier" };
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) return;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            _status = await Api.GetGoogleStatusAsync();
+            _members = (await Api.ListMembersAsync()).ToList();
+            _calendars = (await Api.ListCalendarsAsync()).ToList();
+            _google = _status.Connected ? (await Api.ListGoogleCalendarsAsync()).ToList() : [];
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task AddAsync(GoogleCalendarDto g, AddOptions o)
+    {
+        _busy = true; _error = null;
+        try
+        {
+            await Api.AddCalendarAsync(new AddCalendarRequest { GoogleCalendarId = g.Id, Name = g.Name, Kind = o.Kind, OwnerMemberId = o.Owner, Color = g.Color });
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveAsync(CalendarDto c)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Fjern \"{c.Name}\" fra appen? Kalenderen i Google bliver ikke slettet.")) return;
+        try { await Api.RemoveCalendarAsync(c.Id); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Afbryd forbindelsen til din Google-konto?")) return;
+        try { await Api.DisconnectGoogleAsync(); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+}
+

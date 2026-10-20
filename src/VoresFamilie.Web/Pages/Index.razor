@@ -14,10 +14,17 @@ else
 {
     <h1>Hej @Session.Family.Me.DisplayName 👋</h1>
     <p>Velkommen til <strong>@Session.Family.Name</strong>. Din rolle: @Session.RoleName(Session.Family.Me.Role).</p>
-    <p class="muted">Kalendere, lektier, rutiner, madplan og meget mere kommer i de næste faser.</p>
+    <div class="row wrap">
+        <a class="button primary" href="min-side">Min side</a>
+        <a class="button primary" href="kalender">Kalender</a>
+        <a class="button primary" href="lektier">Lektier</a>
+    </div>
+    <p class="muted">Rutiner, madplan og meget mere kommer i de næste faser.</p>
 }
 
 @code {
 }
+
+
 
 

@@ -1,0 +1,259 @@
+﻿@page "/kalender"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject IJSRuntime JS
+
+<h1>Kalender</h1>
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/kalender" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+@if (_calendars.Count == 0 && !_loading)
+{
+    <div class="card">
+        <p>Der er ingen kalendere endnu.</p>
+        <p class="muted">@(Session.IsAdmin ? "Forbind Google Kalender og vælg, hvilke kalendere familien skal bruge." : "En admin skal forbinde Google Kalender. Du kan selv tilføje din egen private kalender under Google-indstillinger.")</p>
+        <a class="button primary" href="indstillinger/google">Google-indstillinger</a>
+    </div>
+    return;
+}
+
+<div class="week-nav">
+    <button class="link" @onclick="() => MoveWeek(-1)" aria-label="Forrige uge">‹</button>
+    <strong>Uge @Dk.Week(_weekStart) · @Dk.DayShort(_weekStart) – @Dk.DayShort(_weekStart.AddDays(6))</strong>
+    <button class="link" @onclick="() => MoveWeek(1)" aria-label="Næste uge">›</button>
+    <button class="link" @onclick="GoToday">I dag</button>
+</div>
+
+<div class="chips">
+    @foreach (var c in _calendars)
+    {
+        var on = !_hidden.Contains(c.Id);
+        <button class="chip @(on ? "on" : "")" style="--c:@c.Color" @onclick="() => ToggleAsync(c.Id)" aria-pressed="@on">
+            <span class="dot"></span>@c.Name@(c.OwnerName is { } o && c.Kind == CalendarKind.Personal ? $" ({o})" : "")
+        </button>
+    }
+</div>
+
+<div class="row">
+    <button class="primary" @onclick="NewEvent" disabled="@(!_calendars.Any(c => c.CanEdit))">+ Ny begivenhed</button>
+    <button class="link" @onclick="SyncAsync" disabled="@_syncing">@(_syncing ? "Synkroniserer…" : "Synk nu")</button>
+</div>
+<p class="muted small">@SyncText</p>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+@if (_info is not null) { <p class="info">@_info</p> }
+
+@if (_form is not null)
+{
+    <section class="card">
+        <h2>@(_form.EventId is null ? "Ny begivenhed" : "Redigér begivenhed")</h2>
+        <label>Titel <input @bind="_form.Title" maxlength="500" /></label>
+        <label>Kalender
+            <select @bind="_form.CalendarId" disabled="@(_form.EventId is not null)">
+                @foreach (var c in _calendars.Where(c => c.CanEdit)) { <option value="@c.Id">@c.Name</option> }
+            </select>
+        </label>
+        <label class="check"><input type="checkbox" @bind="_form.AllDay" /> Hele dagen</label>
+        <div class="grid">
+            <label>@(_form.AllDay ? "Fra dato" : "Dato") <input type="date" @bind="_form.Date" /></label>
+            @if (_form.AllDay)
+            {
+                <label>Til dato <input type="date" @bind="_form.EndDate" /></label>
+            }
+            else
+            {
+                <label>Start <input type="time" @bind="_form.StartTime" /></label>
+                <label>Slut <input type="time" @bind="_form.EndTime" /></label>
+            }
+        </div>
+        <label>Sted <input @bind="_form.Location" maxlength="500" /></label>
+        <label>Beskrivelse <textarea @bind="_form.Description" rows="3"></textarea></label>
+        @if (_formError is not null) { <p class="error">@_formError</p> }
+        <div class="row">
+            <button class="primary" @onclick="SaveAsync" disabled="@_saving">@(_saving ? "Gemmer…" : "Gem")</button>
+            <button class="link" @onclick="() => _form = null">Annullér</button>
+            @if (_form.EventId is not null) { <button class="link danger" @onclick="DeleteAsync" disabled="@_saving">Slet</button> }
+        </div>
+    </section>
+}
+
+@if (_loading) { <p class="muted">Henter begivenheder…</p> }
+
+<WeekDays WeekStart="_weekStart" Events="_events" Calendars="_calendars" OnEventClick="@((EventDto e) => Edit(e))" />
+
+@code {
+    private sealed class EventForm
+    {
+        public string? EventId;
+        public Guid CalendarId;
+        public string Title = "";
+        public string? Description, Location;
+        public bool AllDay;
+        public DateOnly Date, EndDate;
+        public TimeOnly StartTime = new(8, 0), EndTime = new(9, 0);
+    }
+
+    private DateTime _weekStart = Dk.WeekStart(DateTime.Today);
+    private List<CalendarDto> _calendars = [];
+    private readonly HashSet<Guid> _hidden = [];
+    private List<EventDto> _events = [];
+    private bool _loading = true, _syncing, _saving;
+    private string? _error, _info, _formError;
+    private EventForm? _form;
+
+    private string SyncText
+    {
+        get
+        {
+            var last = _calendars.Where(c => c.LastSyncedAt is not null).Select(c => c.LastSyncedAt!.Value).DefaultIfEmpty().Max();
+            return last == default ? "Ikke synkroniseret endnu." : $"Sidst synkroniseret med Google: {Dk.DateTimeText(last)}";
+        }
+    }
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            _calendars = (await Api.ListCalendarsAsync()).ToList();
+            await LoadEventsAsync();
+            _calendars = (await Api.ListCalendarsAsync()).ToList(); // refreshes "last synced"
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        var ids = _calendars.Where(c => !_hidden.Contains(c.Id)).Select(c => c.Id).ToList();
+        _events = ids.Count == 0
+            ? []
+            : (await Api.ListEventsAsync(Dk.Local(_weekStart), Dk.Local(_weekStart.AddDays(7)), ids)).ToList();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true; _error = null;
+        try { await LoadEventsAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private Task MoveWeek(int weeks) { _weekStart = _weekStart.AddDays(7 * weeks); return Reload(); }
+    private Task GoToday() { _weekStart = Dk.WeekStart(DateTime.Today); return Reload(); }
+
+    private Task ToggleAsync(Guid id)
+    {
+        if (!_hidden.Remove(id)) _hidden.Add(id);
+        return Reload();
+    }
+
+    private async Task SyncAsync()
+    {
+        _syncing = true; _error = null; _info = null;
+        try
+        {
+            var result = await Api.SyncCalendarsAsync();
+            _info = result.Failed == 0 ? "Synkroniseret med Google." : $"{result.Failed} af {result.Calendars} kalendere kunne ikke synkroniseres. Prøv igen om lidt.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _syncing = false; }
+    }
+
+    private void NewEvent()
+    {
+        _formError = null; _info = null;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var first = _calendars.First(c => c.CanEdit);
+        _form = new EventForm { CalendarId = first.Id, Date = today, EndDate = today };
+    }
+
+    private void Edit(EventDto e)
+    {
+        _formError = null; _info = null;
+        var start = e.Start.LocalDateTime;
+        var end = e.End.LocalDateTime;
+        _form = new EventForm
+        {
+            EventId = e.Id, CalendarId = e.CalendarId, Title = e.Title, Description = e.Description, Location = e.Location,
+            AllDay = e.AllDay, Date = DateOnly.FromDateTime(start),
+            EndDate = DateOnly.FromDateTime(e.AllDay && end > start ? end.AddDays(-1) : end),
+            StartTime = TimeOnly.FromDateTime(start), EndTime = TimeOnly.FromDateTime(end),
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+        _formError = null;
+        if (string.IsNullOrWhiteSpace(_form.Title)) { _formError = "Skriv en titel."; return; }
+        DateTimeOffset start, end;
+        if (_form.AllDay)
+        {
+            if (_form.EndDate < _form.Date) { _formError = "Slutdatoen kan ikke ligge før startdatoen."; return; }
+            start = Dk.Local(_form.Date.ToDateTime(TimeOnly.MinValue));
+            end = Dk.Local(_form.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue)); // Google's all-day end is exclusive
+        }
+        else
+        {
+            start = Dk.Local(_form.Date.ToDateTime(_form.StartTime));
+            end = Dk.Local(_form.Date.ToDateTime(_form.EndTime));
+            if (end < start) { _formError = "Slut skal være efter start."; return; }
+        }
+
+        var body = new SaveEventRequest
+        {
+            Title = _form.Title.Trim(), Description = _form.Description, Location = _form.Location,
+            Start = start, End = end, AllDay = _form.AllDay,
+        };
+        _saving = true;
+        try
+        {
+            if (_form.EventId is null) await Api.CreateEventAsync(_form.CalendarId, body);
+            else await Api.UpdateEventAsync(_form.CalendarId, _form.EventId, body);
+            _form = null;
+            _info = "Gemt i Google Kalender.";
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            _formError = Session.ErrorMessage(ex);
+            if (ex is ApiException { StatusCode: 409 }) { _form = null; _error = _formError; await Reload(); }
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_form?.EventId is not { } id) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Slet \"{_form.Title}\"? Den fjernes også fra Google Kalender.")) return;
+        _saving = true;
+        try
+        {
+            await Api.DeleteEventAsync(_form.CalendarId, id);
+            _form = null;
+            _info = "Begivenheden er slettet.";
+            await Reload();
+        }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); }
+        finally { _saving = false; }
+    }
+}
+
+

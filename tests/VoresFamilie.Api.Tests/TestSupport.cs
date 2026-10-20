@@ -17,6 +17,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         // UseSetting is applied before Program reads configuration (ConfigureAppConfiguration is too late for minimal hosting).
         builder.UseSetting("Database:Provider", "Sqlite");
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={_db}");
+        builder.UseSetting("Google:Mode", "Fake"); // in-memory Google with demo calendars
+        builder.UseSetting("DataProtection:KeysPath", Path.Combine(Path.GetTempPath(), $"vf-keys-{Guid.NewGuid():N}"));
     }
 
     protected override void Dispose(bool disposing)
@@ -47,5 +49,6 @@ public static class Json
     public static Task<HttpResponseMessage> PutAsync(this HttpClient c, string url, object body) =>
         c.PutAsJsonAsync(url, body, Options);
 }
+
 
 
