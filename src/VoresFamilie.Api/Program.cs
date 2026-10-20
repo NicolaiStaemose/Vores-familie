@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Scalar.AspNetCore;
+using System.Net;
+using Yarp.ReverseProxy.Forwarder;
 using VoresFamilie.Api;
 using VoresFamilie.Application;
 using VoresFamilie.Domain;
@@ -64,6 +66,12 @@ if (googleEnabled)
     });
 }
 
+// Development only: when DevFrontend:Url is set (see launchSettings.json), the API also serves the web app by forwarding everything
+// that is not /api to the Web dev server. Page and API then share one origin, so ONE dev tunnel (docs/dev-tunnel.md)
+// is enough to open the whole app on a phone.
+var devFrontend = builder.Environment.IsDevelopment() ? builder.Configuration["DevFrontend:Url"] : null;
+if (!string.IsNullOrEmpty(devFrontend)) builder.Services.AddHttpForwarder();
+
 builder.Services.AddAuthorization();
 
 // Only needed when the Web dev server runs on its own port (Visual Studio F5). In production everything is same-origin behind the proxy.
@@ -94,6 +102,26 @@ app.MapCalendarEndpoints();
 app.MapDailyEndpoints();
 app.MapHouseholdEndpoints();
 
+if (!string.IsNullOrEmpty(devFrontend))
+{
+    var forwarder = app.Services.GetRequiredService<IHttpForwarder>();
+    var client = new HttpMessageInvoker(new SocketsHttpHandler
+    {
+        UseProxy = false, AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.None, UseCookies = false,
+    });
+    // The pattern is spelled out because the default fallback skips paths that look like files (.js, .css, .wasm).
+    app.MapFallback("/{**path}", async ctx =>
+    {
+        if (ctx.Request.Path.StartsWithSegments("/api")) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+        var error = await forwarder.SendAsync(ctx, devFrontend, client);
+        if (error != ForwarderError.None && !ctx.Response.HasStarted)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status502BadGateway;
+            await ctx.Response.WriteAsync($"Web-projektet svarer ikke på {devFrontend}. Start det (F5 i Visual Studio), og opdater siden.");
+        }
+    }).ExcludeFromDescription();
+}
+
 // Skip DB setup when the OpenAPI build task starts the app only to read the document.
 if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider")
     await app.Services.InitializeDatabaseAsync();
@@ -101,6 +129,8 @@ if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocumen
 app.Run();
 
 public partial class Program;
+
+
 
 
 
