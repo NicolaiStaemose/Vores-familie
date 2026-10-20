@@ -1,6 +1,6 @@
-﻿@* Seven day columns (Monday first) with the week's events. Shared by the calendar and "Min side". *@
+﻿@* Day sections (a whole week, or a single day) with their events. Shared by the calendar and "Min side". *@
 
-@for (var i = 0; i < 7; i++)
+@for (var i = 0; i < Days; i++)
 {
     var day = WeekStart.AddDays(i);
     var items = ForDay(day).ToList();
@@ -22,6 +22,8 @@
 
 @code {
     [Parameter, EditorRequired] public DateTime WeekStart { get; set; }
+    /// <summary>How many days to show, starting at <see cref="WeekStart"/> (7 for a week, 1 for a single day).</summary>
+    [Parameter] public int Days { get; set; } = 7;
     [Parameter, EditorRequired] public IReadOnlyList<EventDto> Events { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<CalendarDto> Calendars { get; set; } = [];
     /// <summary>When set, events in calendars the user may edit are clickable.</summary>
@@ -39,3 +41,4 @@
         }).OrderBy(e => !e.AllDay).ThenBy(e => e.Start);
     }
 }
+
