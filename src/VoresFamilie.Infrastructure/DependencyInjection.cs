@@ -29,6 +29,10 @@ public static class DependencyInjection
         services.AddScoped<CalendarSyncService>();
         services.AddScoped<CalendarService>();
         services.AddScoped<HomeworkService>();
+        services.AddScoped<IChecklistRepository, ChecklistRepository>();
+        services.AddScoped<ITodoRepository, TodoRepository>();
+        services.AddScoped<ChecklistService>();
+        services.AddScoped<TodoService>();
 
         // Google:Mode=Fake runs the calendar features against an in-memory Google (no Google Cloud project needed).
         if (string.Equals(config["Google:Mode"], "Fake", StringComparison.OrdinalIgnoreCase))
@@ -97,6 +101,7 @@ public static class DependencyInjection
         }
     }
 }
+
 
 
 

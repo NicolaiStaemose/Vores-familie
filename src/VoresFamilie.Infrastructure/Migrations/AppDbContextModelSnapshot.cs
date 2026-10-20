@@ -271,6 +271,66 @@ namespace VoresFamilie.Infrastructure.Migrations
                     b.ToTable("CalendarEvents");
                 });
 
+            modelBuilder.Entity("VoresFamilie.Domain.ChecklistCheck", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("CompletedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CompletedByMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("ChecklistChecks");
+                });
+
+            modelBuilder.Entity("VoresFamilie.Domain.ChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("Part")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId", "Kind", "MemberId");
+
+                    b.ToTable("ChecklistItems");
+                });
+
             modelBuilder.Entity("VoresFamilie.Domain.Family", b =>
                 {
                     b.Property<Guid>("Id")
@@ -432,6 +492,48 @@ namespace VoresFamilie.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Invitation");
+                });
+
+            modelBuilder.Entity("VoresFamilie.Domain.TodoItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AssigneeMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("CompletedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("CompletedByMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CreatedByMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId");
+
+                    b.ToTable("TodoItems");
                 });
 
             modelBuilder.Entity("VoresFamilie.Infrastructure.GoogleConnection", b =>

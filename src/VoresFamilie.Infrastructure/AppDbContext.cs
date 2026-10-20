@@ -15,6 +15,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<HomeworkCompletion> HomeworkCompletions => Set<HomeworkCompletion>();
     public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
+    public DbSet<ChecklistItem> ChecklistItems => Set<ChecklistItem>();
+    public DbSet<ChecklistCheck> ChecklistChecks => Set<ChecklistCheck>();
+    public DbSet<TodoItem> TodoItems => Set<TodoItem>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -70,6 +73,34 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             e.HasIndex(x => new { x.CalendarId, x.Start });
         });
 
+        b.Entity<ChecklistItem>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.Id).ValueGeneratedNever();
+            e.Property(i => i.Title).HasMaxLength(200).IsRequired();
+            e.Property(i => i.Days).HasConversion<int>();
+            e.HasIndex(i => new { i.FamilyId, i.Kind, i.MemberId });
+        });
+
+        b.Entity<ChecklistCheck>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).ValueGeneratedNever();
+            e.Property(c => c.CompletedAt).HasConversion(UtcTicks);
+            e.HasIndex(c => new { c.ItemId, c.Date }).IsUnique();
+        });
+
+        b.Entity<TodoItem>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Id).ValueGeneratedNever();
+            e.Property(t => t.Title).HasMaxLength(300).IsRequired();
+            e.Property(t => t.Notes).HasMaxLength(2000);
+            e.Property(t => t.CreatedAt).HasConversion(UtcTicks);
+            e.Property(t => t.CompletedAt).HasConversion(UtcTicksNullable);
+            e.HasIndex(t => t.FamilyId);
+        });
+
         b.Entity<GoogleConnection>(e =>
         {
             e.HasKey(g => g.UserId);
@@ -115,6 +146,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         return new MemberPermissions(j.Levels, j.CanCheckOwnItems);
     }
 }
+
 
 
 
