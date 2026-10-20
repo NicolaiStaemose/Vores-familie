@@ -17,9 +17,11 @@
       "generateExceptionClasses": true,
       "exceptionClass": "ApiException",
       "jsonLibrary": "SystemTextJson",
+      "dateType": "System.DateOnly",
       "generateOptionalParameters": false,
       "operationGenerationMode": "SingleClientFromOperationId",
       "output": "Generated/ApiClient.g.cs"
     }
   }
 }
+

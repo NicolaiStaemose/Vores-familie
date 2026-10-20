@@ -11,6 +11,10 @@ public sealed class Session(IApiClient api)
     public FamilyDto? Family => Me?.Family;
     public bool IsAdmin => Family?.Me.Role == Role.Admin;
 
+    /// <summary>Whether the signed-in member may change things in an area (admins always can).</summary>
+    public bool CanEdit(Area area) =>
+        Family?.Me.Permissions.TryGetValue(area.ToString(), out var level) == true && level == AccessLevel.Edit;
+
     public event Action? Changed;
 
     public async Task RefreshAsync()
@@ -75,4 +79,5 @@ public sealed class Session(IApiClient api)
         _ => "Kan se og redigere",
     };
 }
+
 

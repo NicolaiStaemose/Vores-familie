@@ -1,0 +1,197 @@
+﻿@page "/todo"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject IJSRuntime JS
+
+<h1>ToDo</h1>
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/todo" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+<div class="chips">
+    <button class="chip @(_filter == TodoFilter.All ? "on" : "")" @onclick="() => SetFilter(TodoFilter.All)">Alle</button>
+    <button class="chip @(_filter == TodoFilter.Mine ? "on" : "")" @onclick="() => SetFilter(TodoFilter.Mine)">Mine</button>
+    <button class="chip @(_filter == TodoFilter.Open ? "on" : "")" @onclick="() => SetFilter(TodoFilter.Open)">Ikke færdige</button>
+</div>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@if (Session.CanEdit(Area.Todo))
+{
+    <div class="card">
+        <div class="row">
+            <input class="grow" placeholder="Nyt punkt…" @bind="_quick" @bind:event="oninput" @onkeydown="QuickKey" maxlength="300" />
+            <button class="primary" disabled="@(string.IsNullOrWhiteSpace(_quick) || _saving)" @onclick="QuickAddAsync">Tilføj</button>
+        </div>
+    </div>
+}
+
+@if (_form is not null)
+{
+    <section class="card">
+        <h2>Redigér punkt</h2>
+        <label>Tekst <input @bind="_form.Title" maxlength="300" /></label>
+        <div class="grid">
+            <label>Ansvarlig
+                <select @bind="_form.Assignee">
+                    <option value="@((Guid?)null)">Ingen</option>
+                    @foreach (var m in _members) { <option value="@m.Id">@m.DisplayName</option> }
+                </select>
+            </label>
+            <label>Frist <input type="date" @bind="_form.Due" /></label>
+        </div>
+        <label>Noter <textarea @bind="_form.Notes" rows="3" maxlength="2000"></textarea></label>
+        @if (_formError is not null) { <p class="error">@_formError</p> }
+        <div class="row">
+            <button class="primary" @onclick="SaveAsync" disabled="@_saving">@(_saving ? "Gemmer…" : "Gem")</button>
+            <button class="link" @onclick="() => _form = null">Annullér</button>
+        </div>
+    </section>
+}
+
+@if (_loading)
+{
+    <p class="muted">Henter…</p>
+}
+else if (_todos.Count == 0)
+{
+    <div class="card"><p>Ingen punkter her. 🎉</p></div>
+}
+else
+{
+    @foreach (var t in _todos)
+    {
+        <div class="homework todo @(t.IsDone ? "done" : "")">
+            <input type="checkbox" checked="@t.IsDone" disabled="@(!t.CanCheck)" @onchange="e => TickAsync(t, (bool)e.Value!)" aria-label="Færdig" />
+            <span class="text">
+                <span class="title">@t.Title@if (t.AssigneeName is { } who) { <span class="badge">@who</span> }</span>
+                @if (t.DueDate is { } due) { <span class="meta @(t.IsOverdue ? "overdue" : "")">@(t.IsOverdue ? "Forfalden · " : "")Frist @Dk.DayShort(due.ToDateTime(TimeOnly.MinValue))</span> }
+                @if (!string.IsNullOrEmpty(t.Notes)) { <span class="meta">@t.Notes</span> }
+                @if (t.IsDone && t.CompletedByName is { } by) { <span class="meta">Færdig · @by</span> }
+            </span>
+            @if (Session.CanEdit(Area.Todo))
+            {
+                <span class="actions">
+                    <button class="link" aria-label="Redigér" @onclick="() => Edit(t)">✎</button>
+                    <button class="link danger" aria-label="Slet" @onclick="() => DeleteAsync(t)">✕</button>
+                </span>
+            }
+        </div>
+    }
+    @if (Session.CanEdit(Area.Todo) && _todos.Any(t => t.IsDone))
+    {
+        <button class="link danger" @onclick="ClearAsync">Ryd færdige</button>
+    }
+}
+
+@code {
+    private sealed class Form
+    {
+        public Guid Id;
+        public string Title = "";
+        public string? Notes;
+        public Guid? Assignee;
+        public DateOnly? Due;
+    }
+
+    private List<TodoDto> _todos = [];
+    private List<MemberDto> _members = [];
+    private TodoFilter _filter = TodoFilter.Open;
+    private Form? _form;
+    private string _quick = "";
+    private bool _loading = true, _saving;
+    private string? _error, _formError;
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        try { _members = (await Api.ListMembersAsync()).ToList(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _todos = (await Api.ListTodosAsync(_filter)).ToList(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private Task SetFilter(TodoFilter f) { _filter = f; return LoadAsync(); }
+
+    private async Task QuickKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_quick)) await QuickAddAsync();
+    }
+
+    private async Task QuickAddAsync()
+    {
+        _saving = true; _error = null;
+        try
+        {
+            await Api.CreateTodoAsync(new SaveTodoRequest { Title = _quick.Trim() });
+            _quick = "";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _saving = false; }
+    }
+
+    private void Edit(TodoDto t)
+    {
+        _formError = null;
+        _form = new Form { Id = t.Id, Title = t.Title, Notes = t.Notes, Assignee = t.AssigneeMemberId, Due = t.DueDate };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+        if (string.IsNullOrWhiteSpace(_form.Title)) { _formError = "Skriv en tekst."; return; }
+        _saving = true;
+        try
+        {
+            await Api.UpdateTodoAsync(_form.Id, new SaveTodoRequest
+            {
+                Title = _form.Title.Trim(), Notes = _form.Notes, AssigneeMemberId = _form.Assignee, DueDate = _form.Due,
+            });
+            _form = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); }
+        finally { _saving = false; }
+    }
+
+    private async Task TickAsync(TodoDto t, bool done)
+    {
+        _error = null;
+        try
+        {
+            if (done) await Api.MarkTodoDoneAsync(t.Id); else await Api.UnmarkTodoDoneAsync(t.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); await LoadAsync(); }
+    }
+
+    private async Task DeleteAsync(TodoDto t)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Slet \"{t.Title}\"?")) return;
+        try { await Api.DeleteTodoAsync(t.Id); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task ClearAsync()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Fjern alle færdige punkter?")) return;
+        try { await Api.ClearCompletedTodosAsync(); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+}

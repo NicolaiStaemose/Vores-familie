@@ -16,7 +16,9 @@ var baseAddress = new Uri(string.IsNullOrEmpty(apiBase) ? builder.HostEnvironmen
 builder.Services.AddScoped(sp => new HttpClient(new CookieHandler { InnerHandler = new HttpClientHandler() }) { BaseAddress = baseAddress });
 builder.Services.AddScoped<IApiClient>(sp => new ApiClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped<Session>();
+builder.Services.AddScoped<Emojis>();
 
 await builder.Build().RunAsync();
+
 
 

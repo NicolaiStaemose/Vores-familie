@@ -2,7 +2,7 @@
 
 Familieapp (Android, installeret PWA): fælles kalender, lektier, opgaver, madplan m.m. Se [CLAUDE.md](CLAUDE.md) for mål, stack og faser.
 
-**Status: fase 2** – login, familier og rettigheder (fase 1) samt kalendere med tovejs-synk til Google Kalender og lektier, der kan afkrydses (fase 2).
+**Status: fase 3** – login, familier og rettigheder (fase 1), kalendere med tovejs-synk til Google Kalender og lektier (fase 2) samt morgen- og aftenrutiner, daglige opgaver i hjemmet og en fælles ToDo-liste (fase 3).
 
 ## Arkitektur
 
@@ -34,6 +34,12 @@ Uden Docker: `dotnet user-secrets` i `src/VoresFamilie.Api` og `dotnet run`.
 
 Se [docs/google-setup.md](docs/google-setup.md). I Development kører API'et som standard med en indbygget demo-Google (`Google:Mode=Fake`), så kalender og lektier kan prøves uden Google-konto. `https://localhost:7222/scalar` viser og tester API'et.
 
+## Rutiner, opgaver og ToDo
+
+- **Min side** er den daglige oversigt for ét familiemedlem: morgenrutine, aftenrutine, dagens opgaver, ToDo og kalender for en dag. Man kan gå en dag frem eller tilbage; kun i dag og i går kan krydses af, og alt nulstilles hver dag.
+- **Rutiner** (menuen "Rutiner", kræver redigeringsret til området Rutiner): sæt punkter op pr. barn og husopgaver med ugedage og ansvarlig.
+- **ToDo**: fælles liste med ansvarlig og frist.
+
 ## Test
 
 ```bash
@@ -49,4 +55,5 @@ dotnet test VoresFamilie.slnx
 ## Sikkerhed
 
 Cookie-login (HttpOnly, SameSite=Lax). API'et accepterer kun JSON og har ingen CORS, så andre sites ikke kan sende state-ændrende kald; yderligere antiforgery kan tilføjes senere.
+
 

@@ -31,8 +31,27 @@
         <span class="dismiss">×</span>
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        // True when the device can draw the emoji. A missing glyph is drawn as an empty box, identical to the box
+        // drawn for a code point that never exists, so we compare the pixels with that reference (and with "nothing").
+        window.emojiSupported = function (emoji) {
+            const render = function (text) {
+                const canvas = document.createElement("canvas");
+                canvas.width = canvas.height = 40;
+                const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                ctx.textBaseline = "top";
+                ctx.font = "32px sans-serif";
+                ctx.fillText(text, 0, 0);
+                return ctx.getImageData(0, 0, 40, 40).data.join(",");
+            };
+            const drawn = render(emoji);
+            return drawn !== render("\u{1FFFE}") && drawn !== render("");
+        };
+    </script>
     <script>navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' });</script>
 </body>
 
 </html>
+
+
 

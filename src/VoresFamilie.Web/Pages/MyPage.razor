@@ -30,8 +30,49 @@
 @if (_loading)
 {
     <p class="muted">Henter…</p>
+    return;
 }
-else if (_calendars.Count == 0)
+
+<div class="week-nav">
+    <button class="link" @onclick="() => MoveDay(-1)" aria-label="Forrige dag">‹</button>
+    <strong>@DayTitle</strong>
+    <button class="link" @onclick="() => MoveDay(1)" aria-label="Næste dag">›</button>
+    <button class="link" @onclick="GoToday" disabled="@(_day == DateTime.Today)">I dag</button>
+</div>
+@if (_loadingDay) { <p class="muted small" aria-live="polite">Henter…</p> }
+
+@if (_checklist is { CanTickDate: false }) { <p class="muted small">Denne dag kan kun ses, ikke krydses af.</p> }
+
+@if (Morning.Count > 0) { <ChecklistSection Title="Morgenrutine" Entries="Morning" Open="@(_day != DateTime.Today || DateTime.Now.Hour < 12)" Busy="_busy" OnToggle="ToggleAsync" /> }
+@if (Evening.Count > 0) { <ChecklistSection Title="Aftenrutine" Entries="Evening" Open="@(_day != DateTime.Today || DateTime.Now.Hour >= 12)" Busy="_busy" OnToggle="ToggleAsync" /> }
+@if (Tasks.Count > 0) { <ChecklistSection Title="Opgaver i hjemmet" Entries="Tasks" Busy="_busy" OnToggle="ToggleAsync" /> }
+
+@if (_myTodos.Count > 0)
+{
+    <details open class="checklist">
+        <summary><strong>ToDo</strong> <span class="muted small">@_myTodos.Count åbne · <a href="todo">Se alle</a></span></summary>
+        @foreach (var todo in _myTodos)
+        {
+            <label class="homework">
+                <input type="checkbox" checked="@false" disabled="@(!todo.CanCheck)" @onchange="e => TickTodoAsync(todo, (bool)e.Value!)" />
+                <span class="text">
+                    <span class="title">@todo.Title</span>
+                    @if (todo.DueDate is { } due) { <span class="meta @(todo.IsOverdue ? "overdue" : "")">Frist @Dk.DayShort(due.ToDateTime(TimeOnly.MinValue))</span> }
+                </span>
+            </label>
+        }
+    </details>
+}
+@if (_saved) { <p class="muted small" aria-live="polite">Gemt ✓</p> }
+
+<div class="card">
+    <div class="row">
+        <strong>@HomeworkText</strong>
+        <a href="lektier">Se lektier</a>
+    </div>
+</div>
+
+@if (_calendars.Count == 0)
 {
     <div class="card">
         <p>@(_who?.DisplayName ?? "Du") har ingen kalendere endnu.</p>
@@ -41,22 +82,7 @@ else if (_calendars.Count == 0)
 }
 else
 {
-    <div class="card">
-        <div class="row">
-            <strong>@HomeworkText</strong>
-            <a href="lektier">Se lektier</a>
-        </div>
-    </div>
-
-    <div class="week-nav">
-        <button class="link" @onclick="() => MoveDay(-1)" aria-label="Forrige dag">‹</button>
-        <strong>@DayTitle</strong>
-        <button class="link" @onclick="() => MoveDay(1)" aria-label="Næste dag">›</button>
-        <button class="link" @onclick="GoToday" disabled="@(_day == DateTime.Today)">I dag</button>
-    </div>
-    <p class="muted small">Viser @string.Join(", ", _calendars.Select(c => c.Name)).</p>
-
-    @if (_loadingDay) { <p class="muted small" aria-live="polite">Henter…</p> }
+    <p class="muted small">Kalender: @string.Join(", ", _calendars.Select(c => c.Name)).</p>
     <WeekDays WeekStart="_day" Days="1" Events="_events" Calendars="_calendars" />
 }
 
@@ -66,9 +92,19 @@ else
     private List<CalendarDto> _calendars = [];
     private List<EventDto> _events = [];
     private List<HomeworkItemDto> _homework = [];
+    private ChecklistDayDto? _checklist;
+    private List<TodoDto> _myTodos = [];
+    private readonly HashSet<Guid> _busy = [];
     private DateTime _day = DateTime.Today;
-    private bool _loading = true, _loadingDay;
+    private bool _loading = true, _loadingDay, _saved;
     private string? _error;
+
+    private IReadOnlyList<ChecklistEntryDto> Morning => Entries(e => e.Part == RoutineSlot.Morning);
+    private IReadOnlyList<ChecklistEntryDto> Evening => Entries(e => e.Part == RoutineSlot.Evening);
+    private IReadOnlyList<ChecklistEntryDto> Tasks => Entries(e => e.Kind == ChecklistKind.HouseholdTask);
+
+    private List<ChecklistEntryDto> Entries(Func<ChecklistEntryDto, bool> filter) =>
+        _checklist?.Entries.Where(filter).ToList() ?? [];
 
     private string HomeworkText
     {
@@ -76,6 +112,16 @@ else
         {
             var open = _homework.Count(h => !h.Done);
             return open == 0 ? "Ingen lektier mangler 🎉" : open == 1 ? "1 lektie mangler" : $"{open} lektier mangler";
+        }
+    }
+
+    private string DayTitle
+    {
+        get
+        {
+            var diff = (_day.Date - DateTime.Today).Days;
+            var label = diff switch { 0 => "I dag", 1 => "I morgen", -1 => "I går", _ => null };
+            return label is null ? Dk.Day(_day) : $"{label} · {Dk.Day(_day)}";
         }
     }
 
@@ -102,42 +148,68 @@ else
             var all = await Api.ListCalendarsAsync();
             // The shared family calendar plus everything that belongs to this person (schedule, homework, personal).
             _calendars = all.Where(c => c.Kind == CalendarKind.Family || c.OwnerMemberId == _who?.Id).OrderBy(c => c.Name).ToList();
-            var ids = _calendars.Select(c => c.Id).ToList();
-            _events = ids.Count == 0 ? [] : (await Api.ListEventsAsync(Dk.Local(_day), Dk.Local(_day.AddDays(1)), ids)).ToList();
             _homework = _who is null ? [] :
                 (await Api.ListHomeworkAsync(Dk.Local(DateTime.Today.AddDays(-7)), Dk.Local(DateTime.Today.AddDays(15)), _who.Id)).ToList();
+            await LoadDayAsync();
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _loading = false; }
+    }
+
+    // Loads everything that depends on the chosen day: routines/tasks, the person's open ToDos and the calendar.
+    private async Task LoadDayAsync()
+    {
+        var ids = _calendars.Select(c => c.Id).ToList();
+        _events = ids.Count == 0 ? [] : (await Api.ListEventsAsync(Dk.Local(_day), Dk.Local(_day.AddDays(1)), ids)).ToList();
+        _checklist = _who is null ? null : await Api.GetChecklistDayAsync(DateOnly.FromDateTime(_day), _who.Id);
+        _myTodos = _who is null ? [] :
+            (await Api.ListTodosAsync(TodoFilter.Open)).Where(t => t.AssigneeMemberId == _who.Id).ToList();
     }
 
     private Task PickAsync(MemberDto m) { _who = m; return LoadAsync(); }
     private Task MoveDay(int days) => ShowDayAsync(_day.AddDays(days));
     private Task GoToday() => ShowDayAsync(DateTime.Today);
 
-    // Changing day only reloads the events, so the page does not blink.
+    // Changing day only reloads what depends on the day, so the page does not blink.
     private async Task ShowDayAsync(DateTime day)
     {
-        _day = day; _loadingDay = true; _error = null;
-        try
-        {
-            var ids = _calendars.Select(c => c.Id).ToList();
-            _events = ids.Count == 0 ? [] : (await Api.ListEventsAsync(Dk.Local(_day), Dk.Local(_day.AddDays(1)), ids)).ToList();
-        }
+        _day = day; _loadingDay = true; _error = null; _saved = false;
+        try { await LoadDayAsync(); }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _loadingDay = false; }
     }
 
-    private string DayTitle
+    private async Task ToggleAsync((ChecklistEntryDto Entry, bool Done) change)
     {
-        get
+        var (entry, done) = change;
+        _busy.Add(entry.ItemId); _error = null; _saved = false;
+        var before = entry.Done;
+        entry.Done = done; // show the tick immediately
+        var date = DateOnly.FromDateTime(_day);
+        try
         {
-            var diff = (_day.Date - DateTime.Today).Days;
-            var label = diff switch { 0 => "I dag", 1 => "I morgen", -1 => "I går", _ => null };
-            return label is null ? Dk.Day(_day) : $"{label} · {Dk.Day(_day)}";
+            if (done) await Api.MarkChecklistDoneAsync(entry.ItemId, date);
+            else await Api.UnmarkChecklistDoneAsync(entry.ItemId, date);
+            _saved = true;
         }
+        catch (Exception ex)
+        {
+            entry.Done = before;
+            _error = Session.ErrorMessage(ex);
+        }
+        finally { _busy.Remove(entry.ItemId); }
+    }
+
+    private async Task TickTodoAsync(TodoDto todo, bool done)
+    {
+        _error = null; _saved = false;
+        try
+        {
+            if (done) await Api.MarkTodoDoneAsync(todo.Id); else await Api.UnmarkTodoDoneAsync(todo.Id);
+            _myTodos.Remove(todo); // finished points leave "mine"
+            _saved = true;
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 }
-
-
 

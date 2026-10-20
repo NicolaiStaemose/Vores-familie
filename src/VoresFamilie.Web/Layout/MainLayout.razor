@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
 @inject Session Session
+@inject Emojis Emojis
 @inject NavigationManager Nav
 
 <header class="topbar">
@@ -13,6 +14,8 @@
                 <a href="min-side">Min side</a>
                 <a href="kalender">Kalender</a>
                 <a href="lektier">Lektier</a>
+                <a href="todo">ToDo</a>
+                @if (Session.CanEdit(Area.Routines)) { <a href="rutiner">Rutiner</a> }
                 <a href="indstillinger/google">Google</a>
             }
             @if (Session.IsAdmin) { <a href="admin">Admin</a> }
@@ -28,6 +31,7 @@
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += StateHasChanged;
+        await Emojis.InitAsync();
         await Session.RefreshAsync();
     }
 
@@ -39,5 +43,7 @@
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 }
+
+
 
 

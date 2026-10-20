@@ -1,0 +1,26 @@
+﻿@inject Emojis Emojis
+<div class="item-row">
+    @if (Item.Icon is { Length: > 0 } icon) { <span class="ico" aria-hidden="true">@Emojis.Show(icon)</span> }
+    <span class="text">
+        <span class="title">@Item.Title</span>
+        <span class="meta">@Dk.DaysText(Item.Days)@(ShowOwner ? " · " + (Item.MemberName ?? "Alle") : "")</span>
+    </span>
+    <span class="actions">
+        <button class="link" disabled="@First" aria-label="Flyt op" @onclick="() => OnMove.InvokeAsync((Item, true))">↑</button>
+        <button class="link" disabled="@Last" aria-label="Flyt ned" @onclick="() => OnMove.InvokeAsync((Item, false))">↓</button>
+        <button class="link" aria-label="Redigér" @onclick="() => OnEdit.InvokeAsync(Item)">✎</button>
+        <button class="link danger" aria-label="Slet" @onclick="() => OnDelete.InvokeAsync(Item)">✕</button>
+    </span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ChecklistItemDto Item { get; set; } = default!;
+    [Parameter] public bool First { get; set; }
+    [Parameter] public bool Last { get; set; }
+    [Parameter] public bool ShowOwner { get; set; }
+    [Parameter] public EventCallback<(ChecklistItemDto Item, bool Up)> OnMove { get; set; }
+    [Parameter] public EventCallback<ChecklistItemDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<ChecklistItemDto> OnDelete { get; set; }
+}
+
+

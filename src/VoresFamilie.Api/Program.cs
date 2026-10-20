@@ -91,6 +91,7 @@ app.MapGet("/healthz", () => Results.Ok("ok")).ExcludeFromDescription();
 app.MapAuthEndpoints(googleEnabled);
 app.MapFamilyEndpoints();
 app.MapCalendarEndpoints();
+app.MapDailyEndpoints();
 
 // Skip DB setup when the OpenAPI build task starts the app only to read the document.
 if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider")
@@ -99,6 +100,7 @@ if (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name != "GetDocumen
 app.Run();
 
 public partial class Program;
+
 
 
 

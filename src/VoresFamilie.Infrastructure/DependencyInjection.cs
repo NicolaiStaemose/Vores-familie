@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using VoresFamilie.Application;
@@ -29,6 +30,10 @@ public static class DependencyInjection
         services.AddScoped<CalendarSyncService>();
         services.AddScoped<CalendarService>();
         services.AddScoped<HomeworkService>();
+        services.AddScoped<IChecklistRepository, ChecklistRepository>();
+        services.AddScoped<ITodoRepository, TodoRepository>();
+        services.AddScoped<ChecklistService>();
+        services.AddScoped<TodoService>();
 
         // Google:Mode=Fake runs the calendar features against an in-memory Google (no Google Cloud project needed).
         if (string.Equals(config["Google:Mode"], "Fake", StringComparison.OrdinalIgnoreCase))
@@ -90,13 +95,52 @@ public static class DependencyInjection
                 if (!m.Success || existing.Contains(m.Groups[1].Value)) continue;
                 await db.Database.ExecuteSqlRawAsync(statement);
             }
+
+            await AddMissingSqliteColumnsAsync(db);
         }
         finally
         {
             await db.Database.CloseConnectionAsync();
         }
     }
+
+    /// <summary>Adds columns that the model has but an older SQLite file lacks (new columns on existing tables).</summary>
+    private static async Task AddMissingSqliteColumnsAsync(AppDbContext db)
+    {
+        foreach (var entity in db.Model.GetEntityTypes())
+        {
+            var table = entity.GetTableName();
+            if (table is null) continue;
+            var store = StoreObjectIdentifier.Table(table, entity.GetSchema());
+
+            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var cmd = db.Database.GetDbConnection().CreateCommand())
+            {
+                cmd.CommandText = $"PRAGMA table_info(\"{table}\")";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) present.Add(reader.GetString(1));
+            }
+            if (present.Count == 0) continue;
+
+            foreach (var property in entity.GetProperties())
+            {
+                var column = property.GetColumnName(store);
+                if (column is null || present.Contains(column)) continue;
+                var type = property.GetColumnType();
+                var nullable = property.IsNullable;
+                // A column that must not be null needs a default for the rows that already exist.
+                var def = nullable ? "" : type.StartsWith("TEXT", StringComparison.OrdinalIgnoreCase) ? " DEFAULT ''" : " DEFAULT 0";
+                // Table, column and type names come from our own EF model, never from user input.
+#pragma warning disable EF1002
+                await db.Database.ExecuteSqlRawAsync($"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {type}{(nullable ? " NULL" : " NOT NULL")}{def}");
+#pragma warning restore EF1002
+            }
+        }
+    }
 }
+
+
+
 
 
 

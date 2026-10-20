@@ -24,6 +24,18 @@ public static class Dk
     /// <summary>ISO week number.</summary>
     public static int Week(DateTime d) => System.Globalization.ISOWeek.GetWeekOfYear(d);
 
+    public static readonly string[] DayShortNames = ["man", "tir", "ons", "tor", "fre", "lør", "søn"];
+
+    /// <summary>Text for a weekday bit mask (Monday=1 ... Sunday=64).</summary>
+    public static string DaysText(int mask)
+    {
+        if (mask == 127) return "Alle dage";
+        if (mask == 31) return "Hverdage";
+        if (mask == 96) return "Weekend";
+        return string.Join(", ", DayShortNames.Where((_, i) => (mask & (1 << i)) != 0));
+    }
+
     public static DateTimeOffset Local(DateTime localDateTime) =>
         new(DateTime.SpecifyKind(localDateTime, DateTimeKind.Local));
 }
+

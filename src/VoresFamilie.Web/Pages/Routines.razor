@@ -1,0 +1,244 @@
+﻿@page "/rutiner"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject IJSRuntime JS
+@inject Emojis Emojis
+
+<h1>Rutiner og opgaver</h1>
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/rutiner" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+@if (!Session.CanEdit(Area.Routines))
+{
+    <p>Du har ikke ret til at redigere rutiner og opgaver. Bed en admin om det under Admin.</p>
+    return;
+}
+
+<div class="chips">
+    <button class="chip @(_tab == Tab.Routines ? "on" : "")" @onclick="() => _tab = Tab.Routines">Rutiner</button>
+    <button class="chip @(_tab == Tab.Tasks ? "on" : "")" @onclick="() => _tab = Tab.Tasks">Opgaver i hjemmet</button>
+</div>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@if (_tab == Tab.Routines)
+{
+    <div class="chips">
+        @foreach (var m in _members)
+        {
+            <button class="chip @(_child == m.Id ? "on" : "")" @onclick="() => PickChild(m.Id)">@m.DisplayName</button>
+        }
+    </div>
+    @foreach (var part in new[] { RoutineSlot.Morning, RoutineSlot.Evening })
+    {
+        <section class="card">
+            <h2>@(part == RoutineSlot.Morning ? "Morgenrutine" : "Aftenrutine")</h2>
+            @{ var list = Routine(part); }
+            @if (list.Count == 0) { <p class="muted small">Ingen punkter endnu.</p> }
+            @for (var i = 0; i < list.Count; i++)
+            {
+                var item = list[i];
+                var first = i == 0;
+                var last = i == list.Count - 1;
+                <ItemRow Item="item" First="first" Last="last" OnMove="MoveAsync" OnEdit="Edit" OnDelete="DeleteAsync" />
+            }
+            <button class="link" @onclick="() => StartNew(ChecklistKind.Routine, part)">+ Tilføj punkt</button>
+        </section>
+    }
+}
+else
+{
+    <section class="card">
+        <h2>Opgaver i hjemmet</h2>
+        <p class="muted small">Fx lave aftensmad, rydde køkken, smøre madpakker. Vælg ugedage og hvem der har ansvaret.</p>
+        @if (Tasks.Count == 0) { <p class="muted small">Ingen opgaver endnu.</p> }
+        @for (var i = 0; i < Tasks.Count; i++)
+        {
+            <ItemRow Item="Tasks[i]" First="i == 0" Last="i == Tasks.Count - 1" ShowOwner="true" OnMove="MoveAsync" OnEdit="Edit" OnDelete="DeleteAsync" />
+        }
+        <button class="link" @onclick="() => StartNew(ChecklistKind.HouseholdTask, RoutineSlot.None)">+ Tilføj opgave</button>
+    </section>
+}
+
+@if (_form is not null)
+{
+    <section class="card" id="item-form">
+        <h2>@(_form.Id is null ? "Nyt punkt" : "Redigér punkt")</h2>
+        <label>Tekst <input @bind="_form.Title" @bind:event="oninput" @bind:after="SuggestAsync" maxlength="200" /></label>
+        <div>
+            Ikon
+            <div class="chips">
+                <button type="button" class="chip @(_form.Icon is null ? "on" : "")" aria-pressed="@(_form.Icon is null)" @onclick="() => _form.Icon = null">
+                    Automatisk @(string.IsNullOrEmpty(_suggested) ? "(intet forslag)" : Emojis.Show(_suggested))
+                </button>
+                <button type="button" class="chip @(_form.Icon == string.Empty ? "on" : "")" aria-pressed="@(_form.Icon == string.Empty)" @onclick="() => _form.Icon = string.Empty">Ingen</button>
+            </div>
+            <div class="emoji-grid" role="group" aria-label="Vælg ikon">
+                @foreach (var e in Palette.Where(Emojis.CanShow))
+                {
+                    <button type="button" class="emoji @(_form.Icon == e ? "on" : "")" aria-pressed="@(_form.Icon == e)" @onclick="() => _form.Icon = e">@e</button>
+                }
+            </div>
+        </div>
+        @if (_form.Kind == ChecklistKind.HouseholdTask)
+        {
+            <label>Ansvarlig
+                <select @bind="_form.MemberId">
+                    <option value="@((Guid?)null)">Alle</option>
+                    @foreach (var m in _members) { <option value="@m.Id">@m.DisplayName</option> }
+                </select>
+            </label>
+        }
+        else
+        {
+            <label>Hører til
+                <select @bind="_form.MemberId">
+                    @foreach (var m in _members) { <option value="@m.Id">@m.DisplayName</option> }
+                </select>
+            </label>
+            <label>Hvornår
+                <select @bind="_form.Part">
+                    <option value="@RoutineSlot.Morning">Morgen</option>
+                    <option value="@RoutineSlot.Evening">Aften</option>
+                </select>
+            </label>
+        }
+        <div>Ugedage<DayPicker @bind-Value="_form.Days" /></div>
+        @if (_formError is not null) { <p class="error">@_formError</p> }
+        <div class="row">
+            <button class="primary" @onclick="SaveAsync" disabled="@_saving">@(_saving ? "Gemmer…" : "Gem")</button>
+            <button class="link" @onclick="() => _form = null">Annullér</button>
+        </div>
+    </section>
+}
+
+@code {
+    private enum Tab { Routines, Tasks }
+
+    private sealed class Form
+    {
+        public Guid? Id;
+        public ChecklistKind Kind;
+        public RoutineSlot Part;
+        public Guid? MemberId;
+        public string Title = "";
+        public int Days = 127;
+        /// <summary>null = automatic (suggested from the text), empty = no icon, otherwise an emoji.</summary>
+        public string? Icon;
+    }
+
+    private static readonly string[] Palette =
+    [
+        "🪥", "🦷", "🧼", "🚿", "🚽", "💇", "👕", "🧥", "👟", "🥣", "🥪", "🥤", "🍳", "💊", "🎒", "📱", "🛏️", "📚",
+        "🍽️", "🍴", "🧹", "🧺", "🗑️", "🌱", "🐕", "🐈", "🛒", "⭐", "❤️", "✅", "⏰", "🎵", "⚽", "🧸",
+    ];
+
+    private string? _suggested;
+    private CancellationTokenSource? _suggestCts;
+
+    // Looks up the automatic icon for the text while typing (after a short pause).
+    private async Task SuggestAsync()
+    {
+        _suggestCts?.Cancel();
+        _suggestCts = new CancellationTokenSource();
+        var token = _suggestCts.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            _suggested = (await Api.SuggestChecklistIconAsync(_form?.Title ?? "", token)).Icon;
+        }
+        catch (OperationCanceledException) { /* a newer keystroke replaced this lookup */ }
+        catch (Exception) { _suggested = null; }
+    }
+
+    private List<ChecklistItemDto> _items = [];
+    private List<MemberDto> _members = [];
+    private Guid? _child;
+    private Tab _tab = Tab.Routines;
+    private Form? _form;
+    private bool _saving;
+    private string? _error, _formError;
+
+    private List<ChecklistItemDto> Routine(RoutineSlot part) =>
+        _items.Where(i => i.Kind == ChecklistKind.Routine && i.MemberId == _child && i.Part == part).OrderBy(i => i.SortOrder).ToList();
+
+    private List<ChecklistItemDto> Tasks => _items.Where(i => i.Kind == ChecklistKind.HouseholdTask).OrderBy(i => i.SortOrder).ToList();
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null || !Session.CanEdit(Area.Routines)) return;
+        try
+        {
+            _members = (await Api.ListMembersAsync()).ToList();
+            // Start with a child if there is one, otherwise the first member.
+            _child = (_members.FirstOrDefault(m => m.Role == Role.Barn) ?? _members.FirstOrDefault())?.Id;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _items = (await Api.ListChecklistItemsAsync()).ToList(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private void PickChild(Guid id) { _child = id; _form = null; }
+
+    private void StartNew(ChecklistKind kind, RoutineSlot part)
+    {
+        _formError = null; _suggested = null;
+        _form = new Form { Kind = kind, Part = part, MemberId = kind == ChecklistKind.Routine ? _child : null };
+    }
+
+    private void Edit(ChecklistItemDto i)
+    {
+        _formError = null; _suggested = null;
+        _form = new Form { Id = i.Id, Kind = i.Kind, Part = i.Part, MemberId = i.MemberId, Title = i.Title, Days = i.Days, Icon = i.CustomIcon };
+        _ = SuggestAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+        if (string.IsNullOrWhiteSpace(_form.Title)) { _formError = "Skriv en tekst."; return; }
+        if (_form.Days == 0) { _formError = "Vælg mindst én ugedag."; return; }
+        var body = new SaveChecklistItemRequest { Kind = _form.Kind, Part = _form.Part, MemberId = _form.MemberId, Title = _form.Title.Trim(), Days = _form.Days, Icon = _form.Icon };
+        _saving = true; _error = null;
+        try
+        {
+            if (_form.Id is null) await Api.CreateChecklistItemAsync(body);
+            else await Api.UpdateChecklistItemAsync(_form.Id.Value, body);
+            _form = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); }
+        finally { _saving = false; }
+    }
+
+    private async Task MoveAsync((ChecklistItemDto Item, bool Up) move)
+    {
+        _error = null;
+        try { await Api.MoveChecklistItemAsync(move.Item.Id, new MoveChecklistItemRequest { Up = move.Up }); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task DeleteAsync(ChecklistItemDto item)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Slet \"{item.Title}\"?")) return;
+        _error = null;
+        try { await Api.DeleteChecklistItemAsync(item.Id); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+}
+
+
+

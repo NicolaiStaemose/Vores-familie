@@ -1,0 +1,35 @@
+﻿@inject Emojis Emojis
+@* One list of tick-off points (e.g. the morning routine). The parent does the saving. *@
+
+<details open="@Open" class="checklist">
+    <summary><strong>@Title</strong> <span class="muted small">@Done af @Entries.Count@(Done == Entries.Count && Entries.Count > 0 ? " ✓" : "")</span></summary>
+    @foreach (var e in Entries)
+    {
+        <label class="homework @(e.Done ? "done" : "")">
+            <input type="checkbox" checked="@e.Done" disabled="@(!e.CanCheck || Busy.Contains(e.ItemId))"
+                   @onchange="ev => OnToggle.InvokeAsync((e, (bool)ev.Value!))" />
+            @if (e.Icon is { Length: > 0 } icon) { <span class="ico" aria-hidden="true">@Emojis.Show(icon)</span> }
+            else if (AnyIcon) { <span class="ico empty" aria-hidden="true"></span> }
+            <span class="text">
+                <span class="title">@e.Title</span>
+                @if (e.Done && e.CompletedByName is { } who) { <span class="meta">Krydset af @who</span> }
+            </span>
+        </label>
+    }
+</details>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<ChecklistEntryDto> Entries { get; set; } = [];
+    [Parameter] public bool Open { get; set; } = true;
+    [Parameter] public IReadOnlySet<Guid> Busy { get; set; } = new HashSet<Guid>();
+    [Parameter] public EventCallback<(ChecklistEntryDto Entry, bool Done)> OnToggle { get; set; }
+
+    private int Done => Entries.Count(e => e.Done);
+
+    // When some points have an icon and others not, keep the text lined up.
+    private bool AnyIcon => Entries.Any(e => e.Icon is { Length: > 0 });
+}
+
+
+

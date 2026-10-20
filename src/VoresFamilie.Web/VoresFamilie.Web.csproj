@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+    <!-- Allows the build-order-only reference to the API (an executable) from this WebAssembly project. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,11 +23,14 @@
     <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
   </ItemGroup>
 
-  <!-- Building the API refreshes contracts/openapi.json, which the client is generated from (Docker passes SkipApiBuild; it uses the committed contract). -->
-  <Target Name="BuildApiContract" BeforeTargets="GenerateApiClient" Condition="'$(SkipApiBuild)' != 'true'">
-    <MSBuild Projects="..\VoresFamilie.Api\VoresFamilie.Api.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
-  </Target>
-
+  <!--
+    The client is generated from contracts/openapi.json, which the API build refreshes. A real project reference (build order only,
+    no assembly reference) lets MSBuild build the API exactly once and before this project, also in a parallel Rebuild Solution.
+    Docker passes SkipApiBuild and uses the committed contract instead.
+  -->
+  <ItemGroup Condition="'$(SkipApiBuild)' != 'true'">
+    <ProjectReference Include="..\VoresFamilie.Api\VoresFamilie.Api.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
   <Target Name="GenerateApiClient" BeforeTargets="CoreCompile" Inputs="..\..\contracts\openapi.json;nswag.json" Outputs="Generated\ApiClient.g.cs">
     <Exec Command="$(NSwagExe_Net100) run nswag.json /variables:Configuration=$(Configuration)" />
     <!-- Include the file even when it did not exist at evaluation time (fresh clone). -->
@@ -36,6 +41,7 @@
   </Target>
 
 </Project>
+
 
 
 

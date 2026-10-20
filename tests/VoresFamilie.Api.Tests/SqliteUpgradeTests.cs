@@ -28,6 +28,30 @@ public class SqliteUpgradeTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Empty(await db2.CalendarEvents.ToListAsync()); // the restored table is usable
     }
 
+    [Fact]
+    public async Task Missing_columns_are_added_to_an_existing_table()
+    {
+        _ = factory.CreateClient();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // Simulate a database from before the Icon column existed.
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ChecklistItems DROP COLUMN Icon");
+            Assert.False(await HasColumn(db, "ChecklistItems", "Icon"));
+        }
+
+        await factory.Services.InitializeDatabaseAsync();
+
+        using var after = factory.Services.CreateScope();
+        var db2 = after.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await HasColumn(db2, "ChecklistItems", "Icon"));
+        Assert.Empty(await db2.ChecklistItems.ToListAsync()); // the table is usable with the restored column
+    }
+
+    private static async Task<bool> HasColumn(AppDbContext db, string table, string column) =>
+        await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS Value FROM pragma_table_info({table}) WHERE name = {column}").SingleAsync() > 0;
+
     private static async Task<bool> HasTable(AppDbContext db, string name) =>
         await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS Value FROM sqlite_master WHERE name = {name}").SingleAsync() > 0;
 }
+
