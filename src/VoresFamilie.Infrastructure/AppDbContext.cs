@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VoresFamilie.Domain;
@@ -18,6 +19,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<ChecklistItem> ChecklistItems => Set<ChecklistItem>();
     public DbSet<ChecklistCheck> ChecklistChecks => Set<ChecklistCheck>();
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
+    public DbSet<Dish> Dishes => Set<Dish>();
+    public DbSet<MealPlanEntry> MealPlanEntries => Set<MealPlanEntry>();
+    public DbSet<ShoppingItem> ShoppingItems => Set<ShoppingItem>();
+    public DbSet<FavoriteItem> FavoriteItems => Set<FavoriteItem>();
+    public DbSet<CleaningTask> CleaningTasks => Set<CleaningTask>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -102,6 +108,56 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             e.HasIndex(t => t.FamilyId);
         });
 
+        b.Entity<Dish>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Id).ValueGeneratedNever();
+            e.Property(d => d.Name).HasMaxLength(200).IsRequired();
+            e.Property(d => d.Ingredients).HasConversion(IngredientsConverter, IngredientsComparer).HasMaxLength(8000).IsRequired();
+            e.HasIndex(d => d.FamilyId);
+        });
+
+        b.Entity<MealPlanEntry>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Id).ValueGeneratedNever();
+            e.Property(m => m.Title).HasMaxLength(300).IsRequired();
+            e.Property(m => m.Notes).HasMaxLength(2000);
+            e.Property(m => m.Ingredients).HasConversion(IngredientsConverter, IngredientsComparer).HasMaxLength(8000).IsRequired();
+            e.HasIndex(m => new { m.FamilyId, m.Date }).IsUnique(); // one dinner per date
+        });
+
+        b.Entity<ShoppingItem>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.Id).ValueGeneratedNever();
+            e.Property(i => i.Name).HasMaxLength(200).IsRequired();
+            e.Property(i => i.Quantity).HasMaxLength(100);
+            e.Property(i => i.Category).HasConversion<int>();
+            e.Property(i => i.CreatedAt).HasConversion(UtcTicks);
+            e.Property(i => i.BoughtAt).HasConversion(UtcTicksNullable);
+            e.HasIndex(i => i.FamilyId);
+        });
+
+        b.Entity<FavoriteItem>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.Id).ValueGeneratedNever();
+            e.Property(f => f.Name).HasMaxLength(200).IsRequired();
+            e.Property(f => f.Quantity).HasMaxLength(100);
+            e.Property(f => f.Category).HasConversion<int>();
+            e.HasIndex(f => f.FamilyId);
+        });
+
+        b.Entity<CleaningTask>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Id).ValueGeneratedNever();
+            e.Property(t => t.Name).HasMaxLength(200).IsRequired();
+            e.Property(t => t.Room).HasMaxLength(100).IsRequired();
+            e.HasIndex(t => t.FamilyId);
+        });
+
         b.Entity<GoogleConnection>(e =>
         {
             e.HasKey(g => g.UserId);
@@ -135,6 +191,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     private static readonly ValueConverter<DateTimeOffset?, long?> UtcTicksNullable = new(
         v => v == null ? null : v.Value.UtcTicks, v => v == null ? null : new DateTimeOffset(v.Value, TimeSpan.Zero));
 
+    private static readonly ValueConverter<IReadOnlyList<IngredientLine>, string> IngredientsConverter = new(
+        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+        s => (IReadOnlyList<IngredientLine>)(JsonSerializer.Deserialize<List<IngredientLine>>(s, (JsonSerializerOptions?)null) ?? new List<IngredientLine>()));
+
+    // Lists are compared by content so EF notices when an ingredient changes.
+    private static readonly ValueComparer<IReadOnlyList<IngredientLine>> IngredientsComparer = new(
+        (a, b) => a!.SequenceEqual(b!),
+        v => v.Aggregate(0, (hash, line) => HashCode.Combine(hash, line.GetHashCode())),
+        v => v.ToList());
+
     private sealed record PermissionsJson(Dictionary<Area, AccessLevel> Levels, bool CanCheckOwnItems);
 
     private static readonly ValueConverter<MemberPermissions, string> PermissionsConverter = new(
@@ -147,6 +213,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         return new MemberPermissions(j.Levels, j.CanCheckOwnItems);
     }
 }
+
 
 
 
