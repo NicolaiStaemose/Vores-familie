@@ -1,0 +1,212 @@
+﻿@page "/rengoring"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject IJSRuntime JS
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/rengoring" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+<h1>Rengøring</h1>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@if (_loading)
+{
+    <p class="muted">Henter…</p>
+}
+else if (_tasks.Count == 0)
+{
+    <div class="card"><p>Der er ingen rengøringsopgaver endnu.@(CanEdit ? " Opret den første herunder." : "")</p></div>
+}
+else
+{
+    @foreach (var room in _tasks.GroupBy(t => t.Room))
+    {
+        <section class="shop-group">
+            <h3>@room.Key</h3>
+            @foreach (var t in room)
+            {
+                <div class="clean @StatusClass(t)">
+                    <div class="text">
+                        <span class="title">@t.Name</span>
+                        <span class="meta">@IntervalText(t.IntervalDays)@(t.AssigneeName is { } who ? " · " + who : "")</span>
+                        <span class="status">@StatusText(t)</span>
+                        @if (t.LastDoneOn is { } last) { <span class="meta">Sidst gjort @Dk.DaysAgo(last, _today)@(t.LastDoneByName is { } by ? " · " + by : "")</span> }
+                    </div>
+                    <div class="actions vertical">
+                        @if (t.CanMarkDone)
+                        {
+                            <button class="primary" disabled="@_pending.Contains(t.Id)" @onclick="() => DoneAsync(t, null)">Gjort</button>
+                            <button class="link" disabled="@_pending.Contains(t.Id)" @onclick="() => DoneAsync(t, _today.AddDays(-1))">Gjort i går</button>
+                        }
+                        @if (CanEdit)
+                        {
+                            <span>
+                                <button class="link" aria-label="Redigér" @onclick="() => Edit(t)">✎</button>
+                                <button class="link danger" aria-label="Slet" @onclick="() => DeleteAsync(t)">✕</button>
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+    }
+}
+
+@if (CanEdit)
+{
+    @if (_form is null)
+    {
+        <button class="primary" @onclick="NewTask">+ Ny opgave</button>
+    }
+    else
+    {
+        <section class="card">
+            <h2>@(_form.Id is null ? "Ny rengøringsopgave" : "Redigér opgave")</h2>
+            <label>Hvad skal gøres? <input @bind="_form.Name" maxlength="200" placeholder="Fx støvsug stuen" /></label>
+            <label>Rum
+                <input @bind="_form.Room" maxlength="100" list="rooms" placeholder="Fx Køkken" />
+                <datalist id="rooms">
+                    @foreach (var r in Rooms) { <option value="@r"></option> }
+                </datalist>
+            </label>
+            <label>Hvor ofte?
+                <select @bind="_form.Preset">
+                    @foreach (var (days, label) in Presets) { <option value="@days">@label</option> }
+                    <option value="0">Andet antal dage …</option>
+                </select>
+            </label>
+            @if (_form.Preset == 0)
+            {
+                <label>Antal dage mellem hver gang <input type="number" min="1" max="365" @bind="_form.CustomDays" /></label>
+            }
+            <label>Ansvarlig
+                <select @bind="_form.Assignee">
+                    <option value="@((Guid?)null)">Ingen bestemt</option>
+                    @foreach (var m in _members) { <option value="@m.Id">@m.DisplayName</option> }
+                </select>
+            </label>
+            @if (_formError is not null) { <p class="error">@_formError</p> }
+            <div class="row">
+                <button class="primary" disabled="@_busy" @onclick="SaveAsync">@(_busy ? "Gemmer…" : "Gem")</button>
+                <button class="link" @onclick="() => _form = null">Annullér</button>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private sealed class Form
+    {
+        public Guid? Id;
+        public string Name = "";
+        public string Room = "";
+        public int Preset = 7;
+        public int CustomDays = 10;
+        public Guid? Assignee;
+        public int Days => Preset == 0 ? CustomDays : Preset;
+    }
+
+    private static readonly (int Days, string Label)[] Presets =
+    [
+        (1, "Hver dag"), (3, "Hver 3. dag"), (7, "Hver uge"), (14, "Hver 14. dag"), (30, "Hver måned"),
+        (90, "Hver 3. måned"), (180, "Hvert halve år"), (365, "Hvert år"),
+    ];
+
+    private static readonly string[] CommonRooms = ["Køkken", "Badeværelse", "Stue", "Soveværelse", "Børneværelser", "Entré", "Altan", "Udenfor"];
+
+    private List<CleaningDto> _tasks = [];
+    private List<MemberDto> _members = [];
+    private readonly HashSet<Guid> _pending = [];
+    private Form? _form;
+    private DateOnly _today = DateOnly.FromDateTime(DateTime.Today);
+    private bool _loading = true, _busy;
+    private string? _error, _formError;
+
+    private bool CanEdit => Session.CanEdit(Area.Cleaning);
+    private IEnumerable<string> Rooms => CommonRooms.Concat(_tasks.Select(t => t.Room)).Distinct();
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        try { _members = (await Api.ListMembersAsync()).ToList(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _today = DateOnly.FromDateTime(DateTime.Today);
+        try { _tasks = (await Api.ListCleaningAsync()).ToList(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private static string IntervalText(int days) =>
+        Presets.FirstOrDefault(p => p.Days == days).Label ?? $"Hver {days}. dag";
+
+    private static string StatusClass(CleaningDto t) => t.Status switch
+    {
+        CleaningStatus.Overdue => "overdue-task",
+        CleaningStatus.DueToday => "today-task",
+        CleaningStatus.NeverDone => "never-task",
+        _ => "",
+    };
+
+    private static string StatusText(CleaningDto t) => t.Status switch
+    {
+        CleaningStatus.NeverDone => "Aldrig gjort",
+        CleaningStatus.Overdue => t.DaysOverdue == 1 ? "Forfalden · 1 dag" : $"Forfalden · {t.DaysOverdue} dage",
+        CleaningStatus.DueToday => "Skal gøres i dag",
+        _ => -t.DaysOverdue == 1 ? "Om 1 dag" : $"Om {-t.DaysOverdue} dage",
+    };
+
+    private async Task DoneAsync(CleaningDto t, DateOnly? date)
+    {
+        _pending.Add(t.Id); _error = null;
+        try { await Api.MarkCleaningDoneAsync(t.Id, new MarkCleaningDoneRequest { Date = date }); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _pending.Remove(t.Id); }
+    }
+
+    private void NewTask() { _formError = null; _form = new Form(); }
+
+    private void Edit(CleaningDto t)
+    {
+        _formError = null;
+        var preset = Presets.Any(p => p.Days == t.IntervalDays) ? t.IntervalDays : 0;
+        _form = new Form { Id = t.Id, Name = t.Name, Room = t.Room, Preset = preset, CustomDays = t.IntervalDays, Assignee = t.AssigneeMemberId };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+        if (string.IsNullOrWhiteSpace(_form.Name)) { _formError = "Skriv, hvad der skal gøres."; return; }
+        if (_form.Days is < 1 or > 365) { _formError = "Vælg mellem 1 og 365 dage."; return; }
+        _busy = true; _formError = null;
+        var body = new SaveCleaningRequest { Name = _form.Name.Trim(), Room = _form.Room, IntervalDays = _form.Days, AssigneeMemberId = _form.Assignee };
+        try
+        {
+            if (_form.Id is null) await Api.CreateCleaningAsync(body); else await Api.UpdateCleaningAsync(_form.Id.Value, body);
+            _form = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync(CleaningDto t)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Slet \"{t.Name}\"?")) return;
+        try { await Api.DeleteCleaningAsync(t.Id); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+}

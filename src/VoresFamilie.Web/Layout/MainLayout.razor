@@ -15,6 +15,9 @@
                 <a href="kalender">Kalender</a>
                 <a href="lektier">Lektier</a>
                 <a href="todo">ToDo</a>
+                <a href="madplan">Madplan</a>
+                <a href="indkob">Indkøb</a>
+                <a href="rengoring">Rengøring</a>
                 @if (Session.CanEdit(Area.Routines)) { <a href="rutiner">Rutiner</a> }
                 <a href="indstillinger/google">Google</a>
             }
@@ -43,6 +46,7 @@
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 }
+
 
 
 

@@ -167,3 +167,33 @@ textarea { font: inherit; padding: .6rem; border: 1px solid #c9ceda; border-radi
 .emoji { background: #fff; border: 1px solid #c9ceda; border-radius: .5rem; font-size: 1.4rem; padding: .25rem; line-height: 1.2; }
 .emoji.on { border-color: #1b6ef3; background: #e8f0fe; box-shadow: 0 0 0 2px #1b6ef3 inset; }
 .ico.empty { background: transparent; }
+
+/* --- Meal plan, shopping, cleaning --- */
+.meal { display: flex; flex-direction: column; gap: .15rem; width: 100%; text-align: left; background: #fff; border-radius: .6rem; padding: .7rem .85rem; margin: .4rem 0; box-shadow: 0 1px 2px rgba(0,0,0,.08); color: inherit; border-left: 5px solid #c9ceda; }
+.meal.today { border-left-color: #1b6ef3; }
+.meal:disabled { opacity: 1; cursor: default; }
+.meal .day-name { color: #667085; font-size: .85rem; }
+.meal .day-name::first-letter { text-transform: uppercase; }
+.meal .title { font-weight: 600; font-size: 1.05rem; }
+.meal .meta { color: #667085; font-size: .85rem; }
+.ingredient { margin: .3rem 0; }
+.qty { width: 7rem; flex: none; }
+.shop-group { margin: 1rem 0; }
+.shop-group h3 { margin: 0 0 .3rem; font-size: 1rem; color: #344054; }
+.homework.shop { padding: .55rem .75rem; }
+.chip.fav { opacity: 1; padding: .15rem .3rem .15rem .6rem; }
+.chip.fav .link { padding: .2rem .3rem; }
+.clean { display: flex; justify-content: space-between; align-items: center; gap: .75rem; background: #fff; border-radius: .6rem; padding: .7rem .85rem; margin: .4rem 0; box-shadow: 0 1px 2px rgba(0,0,0,.08); border-left: 5px solid #c9ceda; }
+.clean .text { display: flex; flex-direction: column; min-width: 0; }
+.clean .title { font-weight: 600; }
+.clean .meta { color: #667085; font-size: .8rem; }
+.clean .status { font-size: .85rem; font-weight: 600; color: #0b6b3a; }
+.clean.overdue-task { border-left-color: #c0262d; }
+.clean.overdue-task .status { color: #c0262d; }
+.clean.today-task { border-left-color: #e8710a; }
+.clean.today-task .status { color: #b45309; }
+.clean.never-task { border-left-color: #8e24aa; }
+.clean.never-task .status { color: #6b21a8; }
+.actions.vertical { flex-direction: column; align-items: flex-end; gap: .15rem; }
+.homework { display: flex; }
+.homework.shop .text { flex: 1; }

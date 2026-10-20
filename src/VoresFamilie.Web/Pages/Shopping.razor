@@ -1,0 +1,262 @@
+﻿@page "/indkob"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject IJSRuntime JS
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/indkob" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+<h1>Indkøb</h1>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+@if (_info is not null) { <p class="info" aria-live="polite">@_info</p> }
+
+@if (CanEdit)
+{
+    <section class="card">
+        <h2>@(_editing is null ? "Tilføj vare" : "Redigér vare")</h2>
+        <div class="row">
+            <input class="grow" placeholder="Hvad skal købes?" @bind="_name" @bind:event="oninput" @bind:after="SuggestAsync" @onkeydown="Key" maxlength="200" />
+            <input class="qty" placeholder="Mængde" @bind="_quantity" @onkeydown="Key" maxlength="100" />
+        </div>
+        <label>Afdeling
+            <select @bind="_category">
+                <option value="auto">Automatisk@(_suggested is { } s ? " (" + Dk.CategoryName(s) + ")" : "")</option>
+                @foreach (var c in Dk.CategoryOrder) { <option value="@c">@Dk.CategoryName(c)</option> }
+            </select>
+        </label>
+        <div class="row wrap">
+            <button class="primary" disabled="@(string.IsNullOrWhiteSpace(_name) || _busy)" @onclick="SaveAsync">@(_editing is null ? "Tilføj" : "Gem")</button>
+            @if (_editing is null)
+            {
+                <button class="link" disabled="@(string.IsNullOrWhiteSpace(_name) || _busy)" @onclick="SaveFavoriteAsync">☆ Gem som fast vare</button>
+            }
+            else
+            {
+                <button class="link" @onclick="CancelEdit">Annullér</button>
+            }
+        </div>
+    </section>
+
+    <details class="checklist" open="@(_favorites.Count > 0)">
+        <summary><strong>Faste varer</strong> <span class="muted small">tryk for at lægge på listen</span></summary>
+        <div class="chips">
+            @foreach (var f in _favorites)
+            {
+                <span class="chip fav">
+                    <button class="link" @onclick="() => AddFavoriteAsync(f)">@f.Name@(string.IsNullOrEmpty(f.Quantity) ? "" : " · " + f.Quantity)</button>
+                    @if (_manage) { <button class="link danger" aria-label="Fjern fast vare" @onclick="() => DeleteFavoriteAsync(f)">✕</button> }
+                </span>
+            }
+            @if (_favorites.Count == 0) { <span class="muted small">Ingen endnu. Skriv en vare og tryk "Gem som fast vare".</span> }
+        </div>
+        @if (_favorites.Count > 0) { <button class="link" @onclick="() => _manage = !_manage">@(_manage ? "Færdig" : "Redigér faste varer")</button> }
+    </details>
+}
+
+@if (_loading)
+{
+    <p class="muted">Henter…</p>
+}
+else if (_items.Count == 0)
+{
+    <div class="card"><p>Indkøbslisten er tom. 🛒</p></div>
+}
+else
+{
+    @foreach (var category in Dk.CategoryOrder)
+    {
+        var open = _items.Where(i => !i.IsBought && i.Category == category).ToList();
+        if (open.Count == 0) { continue; }
+        <section class="shop-group">
+            <h3>@Dk.CategoryName(category)</h3>
+            @foreach (var item in open)
+            {
+                <div class="homework shop">
+                    <input type="checkbox" checked="@false" disabled="@(!CanEdit || _pending.Contains(item.Id))" aria-label="Købt"
+                           @onchange="() => BuyAsync(item, true)" />
+                    <span class="text">
+                        <span class="title">@item.Name@if (!string.IsNullOrEmpty(item.Quantity)) { <span class="badge">@item.Quantity</span> }</span>
+                    </span>
+                    @if (CanEdit)
+                    {
+                        <span class="actions">
+                            <button class="link" aria-label="Redigér" @onclick="() => Edit(item)">✎</button>
+                            <button class="link danger" aria-label="Slet" @onclick="() => DeleteAsync(item)">✕</button>
+                        </span>
+                    }
+                </div>
+            }
+        </section>
+    }
+
+    @if (_items.Any(i => i.IsBought))
+    {
+        <details class="checklist">
+            <summary><strong>Købt</strong> <span class="muted small">@_items.Count(i => i.IsBought)</span></summary>
+            @foreach (var item in _items.Where(i => i.IsBought))
+            {
+                <div class="homework shop done">
+                    <input type="checkbox" checked="@true" disabled="@(!CanEdit)" aria-label="Fortryd køb" @onchange="() => BuyAsync(item, false)" />
+                    <span class="text">
+                        <span class="title">@item.Name@if (!string.IsNullOrEmpty(item.Quantity)) { <span class="badge">@item.Quantity</span> }</span>
+                        @if (item.BoughtByName is { } who) { <span class="meta">Købt af @who</span> }
+                    </span>
+                </div>
+            }
+            @if (CanEdit) { <button class="link danger" @onclick="ClearBoughtAsync">Ryd købte</button> }
+        </details>
+    }
+}
+
+@code {
+    private List<ShoppingItemDto> _items = [];
+    private List<FavoriteDto> _favorites = [];
+    private readonly HashSet<Guid> _pending = [];
+    private ShoppingItemDto? _editing;
+    private string _name = "", _category = "auto";
+    private string? _quantity;
+    private ShoppingCategory? _suggested;
+    private CancellationTokenSource? _suggestCts;
+    private bool _loading = true, _busy, _manage;
+    private string? _error, _info;
+
+    private bool CanEdit => Session.CanEdit(Area.Shopping);
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _items = (await Api.ListShoppingAsync()).ToList();
+            _favorites = (await Api.ListFavoritesAsync()).ToList();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    // Shows which department the typed name will land in (after a short pause in typing).
+    private async Task SuggestAsync()
+    {
+        _suggestCts?.Cancel();
+        _suggestCts = new CancellationTokenSource();
+        var token = _suggestCts.Token;
+        if (string.IsNullOrWhiteSpace(_name)) { _suggested = null; return; }
+        try
+        {
+            await Task.Delay(300, token);
+            _suggested = (await Api.SuggestShoppingCategoryAsync(_name, token)).Category;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { _suggested = null; }
+    }
+
+    private async Task Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_name)) await SaveAsync();
+    }
+
+    private SaveShoppingItemRequest Request() => new()
+    {
+        Name = _name.Trim(),
+        Quantity = _quantity,
+        AutoCategory = _category == "auto",
+        Category = _category == "auto" ? ShoppingCategory.Other : Enum.Parse<ShoppingCategory>(_category),
+    };
+
+    private void ResetForm()
+    {
+        _name = ""; _quantity = null; _category = "auto"; _suggested = null; _editing = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null; _info = null;
+        try
+        {
+            if (_editing is null) await Api.AddShoppingItemAsync(Request());
+            else await Api.UpdateShoppingItemAsync(_editing.Id, Request());
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private void Edit(ShoppingItemDto item)
+    {
+        _editing = item; _name = item.Name; _quantity = item.Quantity; _category = item.Category.ToString(); _error = null; _info = null;
+    }
+
+    private void CancelEdit() => ResetForm();
+
+    private async Task BuyAsync(ShoppingItemDto item, bool bought)
+    {
+        _pending.Add(item.Id); _error = null; _info = null;
+        try
+        {
+            if (bought) await Api.MarkShoppingBoughtAsync(item.Id); else await Api.UnmarkShoppingBoughtAsync(item.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); await LoadAsync(); }
+        finally { _pending.Remove(item.Id); }
+    }
+
+    private async Task DeleteAsync(ShoppingItemDto item)
+    {
+        try { await Api.DeleteShoppingItemAsync(item.Id); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task ClearBoughtAsync()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Fjern alle købte varer fra listen?")) return;
+        try { await Api.ClearBoughtShoppingAsync(); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task SaveFavoriteAsync()
+    {
+        _busy = true; _error = null; _info = null;
+        try
+        {
+            var fav = await Api.AddFavoriteAsync(Request());
+            _info = $"\"{fav.Name}\" er gemt som fast vare.";
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private async Task AddFavoriteAsync(FavoriteDto fav)
+    {
+        _error = null;
+        try
+        {
+            var added = await Api.AddFavoriteToListAsync(fav.Id);
+            _info = added ? $"\"{fav.Name}\" er lagt på listen." : $"\"{fav.Name}\" stod allerede på listen.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task DeleteFavoriteAsync(FavoriteDto fav)
+    {
+        try { await Api.DeleteFavoriteAsync(fav.Id); await LoadAsync(); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+}

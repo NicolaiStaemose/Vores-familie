@@ -41,6 +41,11 @@
 </div>
 @if (_loadingDay) { <p class="muted small" aria-live="polite">Henter…</p> }
 
+@if (_meal is not null)
+{
+    <div class="card"><div class="row"><span>🍽️ <strong>Aftensmad:</strong> @_meal.Title</span><a href="madplan">Madplan</a></div></div>
+}
+
 @if (_checklist is { CanTickDate: false }) { <p class="muted small">Denne dag kan kun ses, ikke krydses af.</p> }
 
 @if (Morning.Count > 0) { <ChecklistSection Title="Morgenrutine" Entries="Morning" Open="@(_day != DateTime.Today || DateTime.Now.Hour < 12)" Busy="_busy" OnToggle="ToggleAsync" /> }
@@ -64,6 +69,23 @@
     </details>
 }
 @if (_saved) { <p class="muted small" aria-live="polite">Gemt ✓</p> }
+
+@if (_cleaningDue.Count > 0 && _day == DateTime.Today)
+{
+    <details open class="checklist">
+        <summary><strong>Rengøring</strong> <span class="muted small">@_cleaningDue.Count skal gøres · <a href="rengoring">Se alle</a></span></summary>
+        @foreach (var c in _cleaningDue)
+        {
+            <div class="clean @(c.Status == CleaningStatus.Overdue ? "overdue-task" : "")">
+                <div class="text">
+                    <span class="title">@c.Name</span>
+                    <span class="meta">@c.Room · @(c.Status switch { CleaningStatus.NeverDone => "Aldrig gjort", CleaningStatus.Overdue => $"Forfalden {c.DaysOverdue} d.", _ => "I dag" })</span>
+                </div>
+                @if (c.CanMarkDone) { <button class="primary" @onclick="() => CleanDoneAsync(c)">Gjort</button> }
+            </div>
+        }
+    </details>
+}
 
 <div class="card">
     <div class="row">
@@ -93,6 +115,8 @@ else
     private List<EventDto> _events = [];
     private List<HomeworkItemDto> _homework = [];
     private ChecklistDayDto? _checklist;
+    private MealDto? _meal;
+    private List<CleaningDto> _cleaningDue = [];
     private List<TodoDto> _myTodos = [];
     private readonly HashSet<Guid> _busy = [];
     private DateTime _day = DateTime.Today;
@@ -150,6 +174,7 @@ else
             _calendars = all.Where(c => c.Kind == CalendarKind.Family || c.OwnerMemberId == _who?.Id).OrderBy(c => c.Name).ToList();
             _homework = _who is null ? [] :
                 (await Api.ListHomeworkAsync(Dk.Local(DateTime.Today.AddDays(-7)), Dk.Local(DateTime.Today.AddDays(15)), _who.Id)).ToList();
+            await LoadCleaningAsync();
             await LoadDayAsync();
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
@@ -164,6 +189,37 @@ else
         _checklist = _who is null ? null : await Api.GetChecklistDayAsync(DateOnly.FromDateTime(_day), _who.Id);
         _myTodos = _who is null ? [] :
             (await Api.ListTodosAsync(TodoFilter.Open)).Where(t => t.AssigneeMemberId == _who.Id).ToList();
+        _meal = await TryLoadMealAsync();
+    }
+
+    // Dinner and cleaning are extras here: a missing right or a hiccup must not break the page.
+    private async Task<MealDto?> TryLoadMealAsync()
+    {
+        try
+        {
+            var date = DateOnly.FromDateTime(_day);
+            return (await Api.ListMealsAsync(date, date)).FirstOrDefault();
+        }
+        catch (Exception) { return null; }
+    }
+
+    private async Task LoadCleaningAsync()
+    {
+        try
+        {
+            // Jobs that are due or overdue and belong to this person, or to nobody in particular.
+            _cleaningDue = (await Api.ListCleaningAsync())
+                .Where(c => c.Status != CleaningStatus.Upcoming && (c.AssigneeMemberId == _who?.Id || c.AssigneeMemberId is null))
+                .OrderBy(c => c.Room).ThenBy(c => c.Name).ToList();
+        }
+        catch (Exception) { _cleaningDue = []; }
+    }
+
+    private async Task CleanDoneAsync(CleaningDto c)
+    {
+        _error = null;
+        try { await Api.MarkCleaningDoneAsync(c.Id, new MarkCleaningDoneRequest()); _cleaningDue.Remove(c); _saved = true; }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 
     private Task PickAsync(MemberDto m) { _who = m; return LoadAsync(); }
@@ -212,4 +268,5 @@ else
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 }
+
 
