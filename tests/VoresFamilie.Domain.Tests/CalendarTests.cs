@@ -120,6 +120,18 @@ public class CalendarModelTests
     }
 
     [Fact]
+    public void Schedule_calendar_needs_an_owner_and_is_edited_with_calendar_rights()
+    {
+        var (f, _, child, adult) = NewFamily();
+        Assert.Throws<DomainException>(() => FamilyCalendar.Create(f.Id, "Skema", CalendarKind.Schedule, null, "g", "u"));
+        var cal = FamilyCalendar.Create(f.Id, "Emma skema", CalendarKind.Schedule, child.Id, "g", "u");
+        Assert.True(CalendarRules.CanView(child, cal));
+        Assert.False(CalendarRules.CanEdit(child, cal)); // the timetable is not the child's to change
+        Assert.True(CalendarRules.CanEdit(adult, cal));
+        Assert.False(CalendarRules.CanCheckHomework(adult, cal)); // not a homework calendar
+    }
+
+    [Fact]
     public void Sync_state_can_be_recorded_and_reset()
     {
         var cal = FamilyCalendar.Create(Guid.NewGuid(), "K", CalendarKind.Family, null, "g", "u");
@@ -131,3 +143,4 @@ public class CalendarModelTests
         Assert.Null(cal.SyncToken);
     }
 }
+

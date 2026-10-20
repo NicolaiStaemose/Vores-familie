@@ -10,6 +10,7 @@
         <nav>
             @if (Session.Family is not null)
             {
+                <a href="min-side">Min side</a>
                 <a href="kalender">Kalender</a>
                 <a href="lektier">Lektier</a>
                 <a href="indstillinger/google">Google</a>
@@ -38,4 +39,5 @@
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 }
+
 

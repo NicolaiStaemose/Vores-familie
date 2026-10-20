@@ -189,6 +189,20 @@ public class CalendarServiceTests
     }
 
     [Fact]
+    public async Task Schedule_calendar_is_shown_to_the_child_but_is_read_only()
+    {
+        var env = new Env();
+        env.Google.AddCalendar("sk", "Emma skema");
+        env.Google.Put("sk", "Dansk", env.Day(1, 8), env.Day(1, 9), id: "s1");
+        var cal = await env.AddAsync("sk", "Emma skema", CalendarKind.Schedule, env.Child.Id);
+
+        Assert.Equal(CalendarKind.Schedule, (await env.CalendarService.ListCalendarsAsync(Env.ChildUser)).Single().Kind);
+        Assert.Equal("Dansk", (await env.EventsAsync(Env.ChildUser, cal.Id)).Single().Title);
+        await Assert.ThrowsAsync<ForbiddenException>(() => env.CalendarService.DeleteEventAsync(Env.ChildUser, cal.Id, "s1"));
+        Assert.Empty(await env.Homework.ListAsync(Env.ChildUser, env.Day(0), env.Day(7), null)); // not homework
+    }
+
+    [Fact]
     public async Task Removing_a_calendar_removes_cache_and_completions()
     {
         var env = new Env();
@@ -285,4 +299,5 @@ public class HomeworkServiceTests
         Assert.Equal(2, (await env.Homework.ListAsync(Env.AdminUser, env.Day(0), env.Day(7), env.Child.Id)).Count);
     }
 }
+
 

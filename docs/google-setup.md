@@ -55,6 +55,7 @@ Gem værdierne som Container Apps-secrets/Key Vault og sæt `Google__Calendar__C
 2. Under **Tilføj kalender** vælger du for hver kalender, hvad den er:
    - **Fælles:** familiens kalender.
    - **Lektier:** børnenes lektiekalendere (fx "Emma lektier", "Noah lektier"). Vælg barnet under "Tilhører".
+   - **Skema:** et barns skole-skema (fx "Emma skema"). Vælg barnet under "Tilhører". Skemaet vises på barnets **Min side** og kan kun rettes af voksne.
    - **Personlig:** hvert medlems egen kalender. Børn og voksne forbinder selv deres Google-konto og tilføjer deres egen personlige kalender.
 3. Åbn **Kalender** og **Lektier**.
 
@@ -72,3 +73,4 @@ Lektier er begivenheder, hvis titel indeholder "lektie" (uanset store/små bogst
 ## Prøv uden Google
 
 Sæt `Google:Mode` til `Fake` (standard i Development, eller `GOOGLE_MODE=Fake` i Docker). Appen bruger så en indbygget demo-Google med en fælles kalender og lektiekalendere, så kalender, lektier og afkrydsning kan prøves uden konto. Data nulstilles, når API'et genstartes.
+

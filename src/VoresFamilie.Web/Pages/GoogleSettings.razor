@@ -65,6 +65,7 @@ else
                             @if (Session.IsAdmin) { <option value="@CalendarKind.Family">Fælles</option> }
                             <option value="@CalendarKind.Personal">Personlig</option>
                             @if (Session.IsAdmin) { <option value="@CalendarKind.Homework">Lektier</option> }
+                            @if (Session.IsAdmin) { <option value="@CalendarKind.Schedule">Skema</option> }
                         </select>
                     </label>
                     @if (o.Kind != CalendarKind.Family)
@@ -134,7 +135,7 @@ else
         _ => null,
     };
 
-    private static string KindName(CalendarKind k) => k switch { CalendarKind.Family => "Fælles", CalendarKind.Personal => "Personlig", _ => "Lektier" };
+    private static string KindName(CalendarKind k) => k switch { CalendarKind.Family => "Fælles", CalendarKind.Personal => "Personlig", CalendarKind.Schedule => "Skema", _ => "Lektier" };
 
     protected override async Task OnSignedInAsync()
     {
@@ -181,3 +182,4 @@ else
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 }
+

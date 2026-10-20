@@ -1,0 +1,117 @@
+﻿@page "/min-side"
+@inherits SessionComponent
+@inject IApiClient Api
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/min-side" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+<h1>@(_who is { } w && w.Id != Session.Family.Me.Id ? w.DisplayName : "Min side")</h1>
+
+@if (_members.Count > 1)
+{
+    <div class="chips">
+        @foreach (var m in _members)
+        {
+            <button class="chip @(_who?.Id == m.Id ? "on" : "")" @onclick="() => PickAsync(m)">@(m.Id == Session.Family.Me.Id ? "Mig" : m.DisplayName)</button>
+        }
+    </div>
+}
+
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@if (_loading)
+{
+    <p class="muted">Henter…</p>
+}
+else if (_calendars.Count == 0)
+{
+    <div class="card">
+        <p>@(_who?.DisplayName ?? "Du") har ingen kalendere endnu.</p>
+        <p class="muted small">Skema, lektier og personlige kalendere dukker op her, når de er tilføjet under Google-indstillinger@(Session.IsAdmin ? "" : " af en admin").</p>
+        <a class="button primary" href="indstillinger/google">Google-indstillinger</a>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="row">
+            <strong>@HomeworkText</strong>
+            <a href="lektier">Se lektier</a>
+        </div>
+    </div>
+
+    <div class="week-nav">
+        <button class="link" @onclick="() => MoveWeek(-1)" aria-label="Forrige uge">‹</button>
+        <strong>Uge @Dk.Week(_weekStart) · @Dk.DayShort(_weekStart) – @Dk.DayShort(_weekStart.AddDays(6))</strong>
+        <button class="link" @onclick="() => MoveWeek(1)" aria-label="Næste uge">›</button>
+        <button class="link" @onclick="GoToday">I dag</button>
+    </div>
+    <p class="muted small">Viser @string.Join(", ", _calendars.Select(c => c.Name)).</p>
+
+    <WeekDays WeekStart="_weekStart" Events="_events" Calendars="_calendars" />
+}
+
+@code {
+    private List<MemberDto> _members = [];
+    private MemberDto? _who;
+    private List<CalendarDto> _calendars = [];
+    private List<EventDto> _events = [];
+    private List<HomeworkItemDto> _homework = [];
+    private DateTime _weekStart = Dk.WeekStart(DateTime.Today);
+    private bool _loading = true;
+    private string? _error;
+
+    private string HomeworkText
+    {
+        get
+        {
+            var open = _homework.Count(h => !h.Done);
+            return open == 0 ? "Ingen lektier mangler 🎉" : open == 1 ? "1 lektie mangler" : $"{open} lektier mangler";
+        }
+    }
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        try
+        {
+            var all = (await Api.ListMembersAsync()).ToList();
+            var me = Session.Family.Me.Id;
+            // Children see themselves; adults can look at each family member.
+            _members = Session.Family.Me.Role == Role.Barn ? all.Where(m => m.Id == me).ToList() : all;
+            _who = _members.FirstOrDefault(m => m.Id == me) ?? _members.FirstOrDefault();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); _loading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var all = await Api.ListCalendarsAsync();
+            // The shared family calendar plus everything that belongs to this person (schedule, homework, personal).
+            _calendars = all.Where(c => c.Kind == CalendarKind.Family || c.OwnerMemberId == _who?.Id).OrderBy(c => c.Name).ToList();
+            var ids = _calendars.Select(c => c.Id).ToList();
+            _events = ids.Count == 0 ? [] : (await Api.ListEventsAsync(Dk.Local(_weekStart), Dk.Local(_weekStart.AddDays(7)), ids)).ToList();
+            _homework = _who is null ? [] :
+                (await Api.ListHomeworkAsync(Dk.Local(DateTime.Today.AddDays(-7)), Dk.Local(DateTime.Today.AddDays(15)), _who.Id)).ToList();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private Task PickAsync(MemberDto m) { _who = m; return LoadAsync(); }
+    private Task MoveWeek(int weeks) { _weekStart = _weekStart.AddDays(7 * weeks); return LoadAsync(); }
+    private Task GoToday() { _weekStart = Dk.WeekStart(DateTime.Today); return LoadAsync(); }
+}
+

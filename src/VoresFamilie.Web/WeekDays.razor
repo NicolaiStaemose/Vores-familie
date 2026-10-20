@@ -1,0 +1,41 @@
+﻿@* Seven day columns (Monday first) with the week's events. Shared by the calendar and "Min side". *@
+
+@for (var i = 0; i < 7; i++)
+{
+    var day = WeekStart.AddDays(i);
+    var items = ForDay(day).ToList();
+    <section class="day @(day.Date == DateTime.Today ? "today" : "")">
+        <h3>@Dk.Day(day)</h3>
+        @if (items.Count == 0) { <p class="muted small">Ingen begivenheder</p> }
+        @foreach (var e in items)
+        {
+            var cal = Calendars.FirstOrDefault(c => c.Id == e.CalendarId);
+            var clickable = OnEventClick.HasDelegate && cal?.CanEdit == true;
+            <button class="event" style="--c:@(cal?.Color ?? "#1b6ef3")" @onclick="() => OnEventClick.InvokeAsync(e)" disabled="@(!clickable)">
+                <span class="time">@(e.AllDay ? "Hele dagen" : $"{Dk.Time(e.Start)}–{Dk.Time(e.End)}")</span>
+                <span class="title">@e.Title@if (e.IsHomework) { <span class="badge">Lektie</span> }</span>
+                <span class="meta">@cal?.Name@(string.IsNullOrEmpty(e.Location) ? "" : " · " + e.Location)</span>
+            </button>
+        }
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public DateTime WeekStart { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<EventDto> Events { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<CalendarDto> Calendars { get; set; } = [];
+    /// <summary>When set, events in calendars the user may edit are clickable.</summary>
+    [Parameter] public EventCallback<EventDto> OnEventClick { get; set; }
+
+    private IEnumerable<EventDto> ForDay(DateTime day)
+    {
+        var from = day.Date;
+        var to = from.AddDays(1);
+        return Events.Where(e =>
+        {
+            var a = e.Start.LocalDateTime;
+            var b = e.End.LocalDateTime;
+            return a < to && (b > from || (a == b && a >= from));
+        }).OrderBy(e => !e.AllDay).ThenBy(e => e.Start);
+    }
+}

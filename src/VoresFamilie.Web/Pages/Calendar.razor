@@ -88,24 +88,7 @@
 
 @if (_loading) { <p class="muted">Henter begivenheder…</p> }
 
-@for (var i = 0; i < 7; i++)
-{
-    var day = _weekStart.AddDays(i);
-    var items = ForDay(day).ToList();
-    <section class="day @(day.Date == DateTime.Today ? "today" : "")">
-        <h3>@Dk.Day(day)</h3>
-        @if (items.Count == 0) { <p class="muted small">Ingen begivenheder</p> }
-        @foreach (var e in items)
-        {
-            var cal = _calendars.FirstOrDefault(c => c.Id == e.CalendarId);
-            <button class="event" style="--c:@(cal?.Color ?? "#1b6ef3")" @onclick="() => Edit(e)" disabled="@(cal?.CanEdit != true)">
-                <span class="time">@(e.AllDay ? "Hele dagen" : $"{Dk.Time(e.Start)}–{Dk.Time(e.End)}")</span>
-                <span class="title">@e.Title@if (e.IsHomework) { <span class="badge">Lektie</span> }</span>
-                <span class="meta">@cal?.Name@(string.IsNullOrEmpty(e.Location) ? "" : " · " + e.Location)</span>
-            </button>
-        }
-    </section>
-}
+<WeekDays WeekStart="_weekStart" Events="_events" Calendars="_calendars" OnEventClick="@((EventDto e) => Edit(e))" />
 
 @code {
     private sealed class EventForm
@@ -178,18 +161,6 @@
     {
         if (!_hidden.Remove(id)) _hidden.Add(id);
         return Reload();
-    }
-
-    private IEnumerable<EventDto> ForDay(DateTime day)
-    {
-        var from = day.Date;
-        var to = from.AddDays(1);
-        return _events.Where(e =>
-        {
-            var a = e.Start.LocalDateTime;
-            var b = e.End.LocalDateTime;
-            return a < to && (b > from || (a == b && a >= from));
-        }).OrderBy(e => !e.AllDay).ThenBy(e => e.Start);
     }
 
     private async Task SyncAsync()
@@ -284,3 +255,5 @@
         finally { _saving = false; }
     }
 }
+
+

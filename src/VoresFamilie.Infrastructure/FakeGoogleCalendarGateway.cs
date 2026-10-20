@@ -79,6 +79,7 @@ public sealed class FakeGoogleCalendarGateway(IClock clock) : IGoogleCalendarGat
         AddCalendar("demo-emma-homework", "Emma lektier", "#e8710a");
         AddCalendar("demo-noah-homework", "Noah lektier", "#0b8043");
         AddCalendar("demo-personal", "Privat", "#8e24aa");
+        AddCalendar("demo-emma-schedule", "Emma skema", "#00acc1");
         Put("demo-family", "Aftensmad hos mormor", today.AddDays(1).AddHours(17), today.AddDays(1).AddHours(20));
         Put("demo-family", "Svømning", today.AddDays(2).AddHours(16), today.AddDays(2).AddHours(17));
         Put("demo-family", "Sommerhus-weekend", today.AddDays(5), today.AddDays(7), allDay: true);
@@ -86,6 +87,9 @@ public sealed class FakeGoogleCalendarGateway(IClock clock) : IGoogleCalendarGat
         for (var d = 0; d < 5; d++)
         {
             var day = today.AddDays(d);
+            Put("demo-emma-schedule", "Dansk", day.AddHours(8), day.AddHours(8.75), "Lokale 12");
+            Put("demo-emma-schedule", "Matematik", day.AddHours(9), day.AddHours(9.75), "Lokale 7");
+            Put("demo-emma-schedule", "Idræt", day.AddHours(11), day.AddHours(12), "Hallen");
             Put("demo-emma-homework", "Lektie: Dansk", day.AddHours(15), day.AddHours(15.5),
                 "Læs side 12-15\n\nBarn: Emma Hansen\nFag: Dansk");
             Put("demo-emma-homework", "99 arter", day.AddHours(8), day.AddHours(8.75),
@@ -178,3 +182,4 @@ public sealed class FakeGoogleCalendarGateway(IClock clock) : IGoogleCalendarGat
     public Task ConnectAsync(string userId, string code, string redirectUri, CancellationToken ct = default) => Task.CompletedTask;
     public Task DisconnectAsync(string userId, CancellationToken ct = default) => Task.CompletedTask;
 }
+

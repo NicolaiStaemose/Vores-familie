@@ -1013,7 +1013,8 @@
         "enum": [
           "Family",
           "Personal",
-          "Homework"
+          "Homework",
+          "Schedule"
         ],
         "type": "string"
       },
