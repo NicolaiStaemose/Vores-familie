@@ -17,6 +17,12 @@ devtunnel create vores-familie
 devtunnel port create vores-familie -p 5156
 ```
 
+```bash
+devtunnel update vores-familie --host-header unchanged
+```
+
+Den sidste kommando gør, at appen ser tunnelens rigtige adresse (ellers rewriter tunnelen `Host` til "localhost"). Det er især vigtigt for Google-forbindelsen.
+
 `user login` åbner et vindue, hvor du logger ind med en Microsoft- eller GitHub-konto. Tunnelen er privat og kan kun åbnes af den, der er logget ind med samme konto.
 
 ## Hver gang du vil teste
@@ -32,7 +38,13 @@ devtunnel port create vores-familie -p 5156
 3. Åbn adressen i Chrome på telefonen. Første gang beder Microsoft dig logge ind med samme konto og trykke **Continue**.
 4. Første indlæsning er langsom (debug-udgaven af appen er stor). Brug wifi.
 
-Vil du lade andre i familien prøve uden at logge ind, kan du tilføje `--allow-anonymous` til `devtunnel create`. Så kan **alle med adressen** åbne appen og oprette brugere, så sluk tunnelen (Ctrl+C), når du er færdig.
+Vil du lade andre i familien prøve uden at logge ind (eller hvis Microsofts login giver en tom side), kan du gøre tunnelen åben:
+
+```bash
+devtunnel access create vores-familie --anonymous
+```
+
+Så kan **alle med adressen** åbne appen og oprette brugere, så sluk tunnelen (Ctrl+C), når du er færdig. Gør den privat igen med `devtunnel access reset vores-familie`.
 
 ## Google Kalender over tunnelen
 
@@ -44,5 +56,7 @@ Google skal kende tunnelens adresse. Tilføj `https://<id>-5156.euw.devtunnels.m
 | --- | --- |
 | Siden viser "Web-projektet svarer ikke på http://localhost:5134" | Web-projektet kører ikke. Start det (F5), og opdater siden. |
 | Tunnelen svarer 404 eller tom side | Tjek, at API'et kører på port 5156 og at `devtunnel port create … -p 5156` er kørt. |
+| Tom side efter Microsofts login | Gør tunnelen åben med `devtunnel access create vores-familie --anonymous` (se ovenfor). |
 | Telefonen vil ikke logge ind | Åbn adressen i Chrome (ikke en indbygget browser i en anden app), og tjek, at du bruger https-adressen. |
 | `devtunnel` findes ikke | Luk og åbn terminalen igen efter installationen. |
+
