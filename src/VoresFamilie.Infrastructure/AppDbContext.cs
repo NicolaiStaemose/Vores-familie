@@ -23,6 +23,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<MealPlanEntry> MealPlanEntries => Set<MealPlanEntry>();
     public DbSet<ShoppingItem> ShoppingItems => Set<ShoppingItem>();
     public DbSet<FavoriteItem> FavoriteItems => Set<FavoriteItem>();
+    public DbSet<PurchaseRecord> PurchaseRecords => Set<PurchaseRecord>();
     public DbSet<CleaningTask> CleaningTasks => Set<CleaningTask>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -147,6 +148,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             e.Property(f => f.Quantity).HasMaxLength(100);
             e.Property(f => f.Category).HasConversion<int>();
             e.HasIndex(f => f.FamilyId);
+        });
+
+        b.Entity<PurchaseRecord>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).ValueGeneratedNever();
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Quantity).HasMaxLength(100);
+            e.Property(p => p.Category).HasConversion<int>();
+            e.HasIndex(p => new { p.FamilyId, p.BoughtOn });
+            e.HasIndex(p => p.ItemId);
         });
 
         b.Entity<CleaningTask>(e =>

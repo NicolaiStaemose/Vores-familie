@@ -64,6 +64,14 @@ internal sealed class ShoppingRepository(AppDbContext db) : IShoppingRepository
         return Task.CompletedTask;
     }
 
+    public async Task<IReadOnlyList<PurchaseRecord>> GetPurchasesSinceAsync(Guid familyId, DateOnly since, CancellationToken ct = default) =>
+        await db.PurchaseRecords.Where(p => p.FamilyId == familyId && p.BoughtOn >= since).ToListAsync(ct);
+
+    public async Task AddPurchaseAsync(PurchaseRecord purchase, CancellationToken ct = default) => await db.PurchaseRecords.AddAsync(purchase, ct);
+
+    public async Task RemovePurchasesOfItemAsync(Guid itemId, CancellationToken ct = default) =>
+        db.PurchaseRecords.RemoveRange(await db.PurchaseRecords.Where(p => p.ItemId == itemId).ToListAsync(ct));
+
     public Task SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
 }
 

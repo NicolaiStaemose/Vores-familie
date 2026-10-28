@@ -29,6 +29,10 @@ public interface IShoppingRepository
     Task AddFavoriteAsync(FavoriteItem favorite, CancellationToken ct = default);
     Task RemoveFavoriteAsync(FavoriteItem favorite, CancellationToken ct = default);
 
+    Task<IReadOnlyList<PurchaseRecord>> GetPurchasesSinceAsync(Guid familyId, DateOnly since, CancellationToken ct = default);
+    Task AddPurchaseAsync(PurchaseRecord purchase, CancellationToken ct = default);
+    Task RemovePurchasesOfItemAsync(Guid itemId, CancellationToken ct = default);
+
     Task SaveChangesAsync(CancellationToken ct = default);
 }
 

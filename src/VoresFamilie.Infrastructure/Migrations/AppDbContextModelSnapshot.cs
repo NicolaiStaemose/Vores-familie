@@ -626,6 +626,41 @@ namespace VoresFamilie.Infrastructure.Migrations
                     b.ToTable("MealPlanEntries");
                 });
 
+            modelBuilder.Entity("VoresFamilie.Domain.PurchaseRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("BoughtOn")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Quantity")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("FamilyId", "BoughtOn");
+
+                    b.ToTable("PurchaseRecords");
+                });
+
             modelBuilder.Entity("VoresFamilie.Domain.ShoppingItem", b =>
                 {
                     b.Property<Guid>("Id")

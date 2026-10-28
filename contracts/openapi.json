@@ -1819,6 +1819,29 @@
         }
       }
     },
+    "/api/shopping/habits": {
+      "get": {
+        "tags": [
+          "Household"
+        ],
+        "operationId": "ListShoppingHabits",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HabitDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/shopping/category-suggestion": {
       "get": {
         "tags": [
@@ -2814,6 +2837,55 @@
           },
           "connected": {
             "type": "boolean"
+          }
+        }
+      },
+      "HabitDto": {
+        "required": [
+          "name",
+          "quantity",
+          "category",
+          "timesBought",
+          "averageDays",
+          "daysSinceLast"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/ShoppingCategory"
+          },
+          "timesBought": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "averageDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "daysSinceLast": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

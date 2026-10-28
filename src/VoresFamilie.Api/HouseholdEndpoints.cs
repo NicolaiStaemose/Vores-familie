@@ -76,6 +76,10 @@ public static class HouseholdEndpoints
             Results.Ok(await s.ClearBoughtAsync(u.GetUserId(p)!, ct)))
             .WithName("ClearBoughtShopping").Produces<int>();
 
+        g.MapGet("/shopping/habits", async (ClaimsPrincipal p, UserManager<IdentityUser> u, ShoppingService s, CancellationToken ct) =>
+            await s.ListHabitsAsync(u.GetUserId(p)!, ct))
+            .WithName("ListShoppingHabits").Produces<IReadOnlyList<HabitDto>>();
+
         g.MapGet("/shopping/category-suggestion", (string? name) => ShoppingService.SuggestCategory(name))
             .WithName("SuggestShoppingCategory").Produces<CategorySuggestionDto>();
 

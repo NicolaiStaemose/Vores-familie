@@ -60,6 +60,23 @@
         </div>
         @if (_favorites.Count > 0) { <button class="link" @onclick="() => _manage = !_manage">@(_manage ? "Færdig" : "Redigér faste varer")</button> }
     </details>
+
+    @if (_habits.Count > 0)
+    {
+        <section class="card">
+            <h2>Du plejer at købe</h2>
+            <p class="muted small">Varer I køber omkring hver uge, som ikke står på listen nu. Tryk for at lægge dem på.</p>
+            <div class="chips">
+                @foreach (var h in _habits)
+                {
+                    <button class="chip" title="Købt @h.TimesBought gange, sidst for @h.DaysSinceLast dage siden" @onclick="() => AddHabitAsync(h)">
+                        + @h.Name@(string.IsNullOrEmpty(h.Quantity) ? "" : " · " + h.Quantity)
+                    </button>
+                }
+            </div>
+            @if (_habits.Count > 1) { <button class="link" @onclick="AddAllHabitsAsync">Læg alle på listen</button> }
+        </section>
+    }
 }
 
 @if (_loading)
@@ -110,6 +127,7 @@ else
 @code {
     private List<ShoppingItemDto> _items = [];
     private List<FavoriteDto> _favorites = [];
+    private List<HabitDto> _habits = [];
     private readonly HashSet<Guid> _pending = [];
     private ShoppingItemDto? _editing;
     private string _name = "", _category = "auto";
@@ -136,6 +154,42 @@ else
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _loading = false; }
+        await LoadHabitsAsync();
+    }
+
+    // Suggestions are a nice extra: a hiccup here must not break the list.
+    private async Task LoadHabitsAsync()
+    {
+        try { _habits = CanEdit ? (await Api.ListShoppingHabitsAsync()).ToList() : []; }
+        catch (Exception) { _habits = []; }
+    }
+
+    private async Task AddHabitAsync(HabitDto habit)
+    {
+        _error = null; _info = null;
+        try
+        {
+            await Api.AddShoppingItemAsync(new SaveShoppingItemRequest { Name = habit.Name, Quantity = habit.Quantity, Category = habit.Category, AutoCategory = false });
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); await LoadAsync(); }
+    }
+
+    private async Task AddAllHabitsAsync()
+    {
+        _error = null; _info = null;
+        var added = 0;
+        try
+        {
+            foreach (var habit in _habits.ToList())
+            {
+                await Api.AddShoppingItemAsync(new SaveShoppingItemRequest { Name = habit.Name, Quantity = habit.Quantity, Category = habit.Category, AutoCategory = false });
+                added++;
+            }
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        if (added > 0) _info = added == 1 ? "1 vare er lagt på listen." : $"{added} varer er lagt på listen.";
+        await LoadAsync();
     }
 
     // Shows which department the typed name will land in (after a short pause in typing).

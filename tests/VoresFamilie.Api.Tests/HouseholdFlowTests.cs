@@ -25,7 +25,7 @@ public class HouseholdFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Household_endpoints_require_login()
     {
         var c = NewClient();
-        foreach (var url in new[] { "/api/shopping", "/api/cleaning", "/api/dishes", $"/api/meals?from={D(Today)}&to={D(Today)}" })
+        foreach (var url in new[] { "/api/shopping", "/api/shopping/habits", "/api/cleaning", "/api/dishes", $"/api/meals?from={D(Today)}&to={D(Today)}" })
             Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync(url)).StatusCode);
     }
 
@@ -72,6 +72,9 @@ public class HouseholdFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsync("/api/shopping", new SaveShoppingItemRequest("mælk", null, ShoppingCategory.Other, true))).StatusCode);
         var suggestion = await (await child.GetAsync("/api/shopping/category-suggestion?name=toiletpapir")).ReadAsync<CategorySuggestionDto>();
         Assert.Equal(ShoppingCategory.Household, suggestion!.Category);
+
+        // Buying is logged, but one purchase is not a habit yet.
+        Assert.Empty((await (await admin.GetAsync("/api/shopping/habits")).ReadAsync<List<HabitDto>>())!);
 
         // Favorites.
         var fav = await (await admin.PostAsync("/api/shopping/favorites", new SaveShoppingItemRequest("Rugbrød", null, ShoppingCategory.Other, true))).ReadAsync<FavoriteDto>();

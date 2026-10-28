@@ -50,8 +50,30 @@ public sealed class ShoppingService(IFamilyRepository families, IShoppingReposit
         var (family, me) = await LoadAsync(userId, ct);
         RequireEdit(me);
         var item = await GetOwnAsync(family, id, ct);
-        if (bought) item.Buy(me.Id, clock.UtcNow); else item.Unbuy();
+        if (bought && !item.IsBought)
+        {
+            item.Buy(me.Id, clock.UtcNow);
+            await shopping.AddPurchaseAsync(PurchaseRecord.For(item, FamilyClock.Today(clock)), ct);
+        }
+        else if (!bought && item.IsBought)
+        {
+            item.Unbuy();
+            await shopping.RemovePurchasesOfItemAsync(item.Id, ct); // the tick was a mistake, so it should not count as a purchase
+        }
         await shopping.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Items bought about weekly that are not on the list now.</summary>
+    public async Task<IReadOnlyList<HabitDto>> ListHabitsAsync(string userId, CancellationToken ct = default)
+    {
+        var (family, me) = await LoadAsync(userId, ct);
+        RequireView(me);
+        var today = FamilyClock.Today(clock);
+        var purchases = await shopping.GetPurchasesSinceAsync(family.Id, today.AddDays(-ShoppingHabits.WindowDays), ct);
+        // An item that is ticked but not cleared yet still counts as "on the list", so it is not suggested a second time.
+        var onList = (await shopping.GetItemsAsync(family.Id, ct)).Select(i => i.Name);
+        return ShoppingHabits.Suggest(purchases, onList, today)
+            .Select(h => new HabitDto(h.Name, h.Quantity, h.Category, h.TimesBought, h.AverageDays, h.DaysSinceLast)).ToList();
     }
 
     /// <summary>Removes everything that has been bought. Returns how many.</summary>

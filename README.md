@@ -45,7 +45,7 @@ Se [docs/google-setup.md](docs/google-setup.md). I Development kører API'et som
 ## Madplan, indkøb og rengøring
 
 - **Madplan:** aftensmad pr. dag med ingredienser. Retter kan gemmes og genbruges, og en dag eller hele ugen kan lægges på indkøbslisten (uden dubletter).
-- **Indkøb:** liste grupperet efter butikkens afdelinger (foreslås automatisk ud fra navnet), mængde, faste varer og "Ryd købte".
+- **Indkøb:** liste grupperet efter butikkens afdelinger (foreslås automatisk ud fra navnet), mængde, faste varer, "Ryd købte" og forslag til varer, I køber omkring hver uge (mindst 3 indkøbsdage inden for 8 uger).
 - **Rengøring:** opgaver pr. rum med interval og "sidst gjort". Forfaldne opgaver er markeret, og Min side viser dem for den, de hører til.
 - Rettighederne styres pr. område (Madplan, Indkøb, Rengøring) på Admin-siden.
 

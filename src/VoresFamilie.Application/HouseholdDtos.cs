@@ -25,6 +25,9 @@ public sealed record SaveShoppingItemRequest(string Name, string? Quantity, Shop
 
 public sealed record CategorySuggestionDto(ShoppingCategory Category);
 
+/// <summary>Something the family buys about every week that is not on the list now.</summary>
+public sealed record HabitDto(string Name, string? Quantity, ShoppingCategory Category, int TimesBought, int AverageDays, int DaysSinceLast);
+
 public sealed record FavoriteDto(Guid Id, string Name, string? Quantity, ShoppingCategory Category);
 
 public sealed record CleaningDto(Guid Id, string Name, string Room, int IntervalDays, Guid? AssigneeMemberId, string? AssigneeName,

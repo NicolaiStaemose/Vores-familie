@@ -35,6 +35,11 @@ internal sealed class MemShopping : IShoppingRepository
     public Task<FavoriteItem?> GetFavoriteAsync(Guid id, CancellationToken ct = default) => Task.FromResult(Favorites.FirstOrDefault(f => f.Id == id));
     public Task AddFavoriteAsync(FavoriteItem f, CancellationToken ct = default) { Favorites.Add(f); return Task.CompletedTask; }
     public Task RemoveFavoriteAsync(FavoriteItem f, CancellationToken ct = default) { Favorites.Remove(f); return Task.CompletedTask; }
+    public List<PurchaseRecord> Purchases { get; } = [];
+    public Task<IReadOnlyList<PurchaseRecord>> GetPurchasesSinceAsync(Guid familyId, DateOnly since, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PurchaseRecord>>(Purchases.Where(p => p.FamilyId == familyId && p.BoughtOn >= since).ToList());
+    public Task AddPurchaseAsync(PurchaseRecord p, CancellationToken ct = default) { Purchases.Add(p); return Task.CompletedTask; }
+    public Task RemovePurchasesOfItemAsync(Guid itemId, CancellationToken ct = default) { Purchases.RemoveAll(p => p.ItemId == itemId); return Task.CompletedTask; }
     public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;
 }
 
@@ -365,5 +370,60 @@ public class CleaningServiceTests
         var mine = await env.Cleaning.CreateAsync(HouseEnv.Admin, Task("Min", 7, env.ChildId));
         env.Base.Family.SetPermission(env.ChildId, Area.Cleaning, AccessLevel.None);
         Assert.Equal([mine.Id], (await env.Cleaning.ListAsync(HouseEnv.Child)).Select(t => t.Id));
+    }
+}
+
+public class ShoppingHabitServiceTests
+{
+    // Buys the item on a day and clears the list, like a real shopping trip.
+    private static async Task BuyOnAsync(HouseEnv env, string name, DateOnly day)
+    {
+        env.GoToDay(day);
+        var item = await env.Shopping.AddAsync(HouseEnv.Admin, HouseEnv.Item(name));
+        await env.Shopping.SetBoughtAsync(HouseEnv.Admin, item.Id, true);
+        await env.Shopping.ClearBoughtAsync(HouseEnv.Admin);
+    }
+
+    [Fact]
+    public async Task Weekly_item_is_suggested_when_it_is_not_on_the_list_and_disappears_once_added()
+    {
+        var env = new HouseEnv();
+        foreach (var week in new[] { 0, 7, 14 }) await BuyOnAsync(env, "Mælk", HouseEnv.Monday.AddDays(week));
+
+        env.GoToDay(HouseEnv.Monday.AddDays(19));
+        var habit = Assert.Single(await env.Shopping.ListHabitsAsync(HouseEnv.Admin));
+        Assert.Equal(("Mælk", 3, 7), (habit.Name, habit.TimesBought, habit.AverageDays));
+        Assert.Equal(ShoppingCategory.Dairy, habit.Category);
+
+        await env.Shopping.AddAsync(HouseEnv.Admin, HouseEnv.Item("Mælk"));
+        Assert.Empty(await env.Shopping.ListHabitsAsync(HouseEnv.Admin));
+    }
+
+    [Fact]
+    public async Task Taking_back_a_tick_removes_the_purchase()
+    {
+        var env = new HouseEnv();
+        foreach (var week in new[] { 0, 7 }) await BuyOnAsync(env, "Æg", HouseEnv.Monday.AddDays(week));
+
+        env.GoToDay(HouseEnv.Monday.AddDays(14));
+        var item = await env.Shopping.AddAsync(HouseEnv.Admin, HouseEnv.Item("Æg"));
+        await env.Shopping.SetBoughtAsync(HouseEnv.Admin, item.Id, true);
+        await env.Shopping.SetBoughtAsync(HouseEnv.Admin, item.Id, true); // ticking twice is one purchase
+        Assert.Equal(3, env.ShoppingRepo.Purchases.Count);
+
+        await env.Shopping.SetBoughtAsync(HouseEnv.Admin, item.Id, false);
+        Assert.Equal(2, env.ShoppingRepo.Purchases.Count);
+    }
+
+    [Fact]
+    public async Task Children_who_may_view_see_the_suggestions_but_others_do_not()
+    {
+        var env = new HouseEnv();
+        foreach (var week in new[] { 0, 7, 14 }) await BuyOnAsync(env, "Boller", HouseEnv.Monday.AddDays(week));
+        env.GoToDay(HouseEnv.Monday.AddDays(19));
+
+        Assert.Single(await env.Shopping.ListHabitsAsync(HouseEnv.Child));
+        env.Base.Family.SetPermission(env.ChildId, Area.Shopping, AccessLevel.None);
+        await Assert.ThrowsAsync<ForbiddenException>(() => env.Shopping.ListHabitsAsync(HouseEnv.Child));
     }
 }
