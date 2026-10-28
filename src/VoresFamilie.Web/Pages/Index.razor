@@ -13,15 +13,15 @@ else if (Session.Family is null)
 else
 {
     <h1>Hej @Session.Family.Me.DisplayName 👋</h1>
-    <p>Velkommen til <strong>@Session.Family.Name</strong>. Din rolle: @Session.RoleName(Session.Family.Me.Role).</p>
-    <div class="row wrap">
-        <a class="button primary" href="min-side">Min side</a>
-        <a class="button primary" href="kalender">Kalender</a>
-        <a class="button primary" href="lektier">Lektier</a>
-        <a class="button primary" href="todo">ToDo</a>
-        <a class="button primary" href="madplan">Madplan</a>
-        <a class="button primary" href="indkob">Indkøb</a>
-        <a class="button primary" href="rengoring">Rengøring</a>
+    <p class="muted">@Session.Family.Name · @Session.RoleName(Session.Family.Me.Role)</p>
+    <div class="tiles">
+        <a class="tile" href="min-side"><span class="tile-icon">🏠</span>Min side</a>
+        <a class="tile" href="kalender"><span class="tile-icon">📅</span>Kalender</a>
+        <a class="tile" href="lektier"><span class="tile-icon">📚</span>Lektier</a>
+        <a class="tile" href="todo"><span class="tile-icon">✅</span>ToDo</a>
+        <a class="tile" href="madplan"><span class="tile-icon">🍽️</span>Madplan</a>
+        <a class="tile" href="indkob"><span class="tile-icon">🛒</span>Indkøb</a>
+        <a class="tile" href="rengoring"><span class="tile-icon">🧹</span>Rengøring</a>
     </div>
     <p class="muted">Notifikationer og offline-brug kommer i næste fase.</p>
 }

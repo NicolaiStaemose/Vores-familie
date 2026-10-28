@@ -6,48 +6,58 @@
 
 <header class="topbar">
     <a class="brand" href="/">Vores familie</a>
-    @if (Session.IsSignedIn)
-    {
-        <nav>
-            @if (Session.Family is not null)
-            {
-                <a href="min-side">Min side</a>
-                <a href="kalender">Kalender</a>
-                <a href="lektier">Lektier</a>
-                <a href="todo">ToDo</a>
-                <a href="madplan">Madplan</a>
-                <a href="indkob">Indkøb</a>
-                <a href="rengoring">Rengøring</a>
-                @if (Session.CanEdit(Area.Routines)) { <a href="rutiner">Rutiner</a> }
-                <a href="indstillinger/google">Google</a>
-            }
-            @if (Session.IsAdmin) { <a href="admin">Admin</a> }
-            <button class="link" @onclick="LogoutAsync">Log ud</button>
-        </nav>
-    }
 </header>
 <main class="content">
     @if (!Session.Loaded) { <p>Henter…</p> } else { @Body }
 </main>
+@if (Session.IsSignedIn && Session.Family is not null)
+{
+    <nav class="tabbar" aria-label="Hovedmenu">
+        @foreach (var tab in Tabs)
+        {
+            <a href="@tab.Href" class="@(IsActive(tab) ? "active" : "")" aria-current="@(IsActive(tab) ? "page" : null)">
+                <span class="tab-icon">@tab.Icon</span>
+                <span>@tab.Label</span>
+            </a>
+        }
+    </nav>
+}
 
 @code {
+    private sealed record Tab(string Href, string Icon, string Label);
+
+    private static readonly Tab[] Tabs =
+    [
+        new("min-side", "🏠", "Min side"),
+        new("kalender", "📅", "Kalender"),
+        new("madplan", "🍽️", "Madplan"),
+        new("indkob", "🛒", "Indkøb"),
+        new("mere", "☰", "Mere"),
+    ];
+
+    private string Path => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Trim('/');
+
+    // "Mere" also lights up on the pages that live under it (and on the start page, which is not a tab).
+    private bool IsActive(Tab tab) =>
+        tab.Href == "mere"
+            ? !Tabs.Take(4).Any(t => PathIs(t.Href)) && Path != ""
+            : PathIs(tab.Href);
+
+    private bool PathIs(string href) => Path.Equals(href, StringComparison.OrdinalIgnoreCase);
+
     protected override async Task OnInitializedAsync()
     {
         Session.Changed += StateHasChanged;
+        Nav.LocationChanged += OnLocationChanged;
         await Emojis.InitAsync();
         await Session.RefreshAsync();
     }
 
-    private async Task LogoutAsync()
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => StateHasChanged();
+
+    public void Dispose()
     {
-        await Session.LogoutAsync();
-        Nav.NavigateTo("/", forceLoad: false);
+        Session.Changed -= StateHasChanged;
+        Nav.LocationChanged -= OnLocationChanged;
     }
-
-    public void Dispose() => Session.Changed -= StateHasChanged;
 }
-
-
-
-
-
