@@ -3,10 +3,12 @@
 namespace VoresFamilie.Web;
 
 /// <summary>Holds the signed-in user and family for the current page session.</summary>
-public sealed class Session(IApiClient api)
+public sealed class Session(IApiClient api, OfflineCache cache)
 {
     public MeDto? Me { get; private set; }
     public bool Loaded { get; private set; }
+    /// <summary>True when there is no connection and who is signed in comes from the saved copy.</summary>
+    public bool Offline { get; private set; }
     public bool IsSignedIn => Me is not null;
     public FamilyDto? Family => Me?.Family;
     public bool IsAdmin => Family?.Me.Role == Role.Admin;
@@ -19,16 +21,43 @@ public sealed class Session(IApiClient api)
 
     public async Task RefreshAsync()
     {
-        try { Me = await api.GetMeAsync(); }
-        catch (ApiException ex) when (ex.StatusCode == 401) { Me = null; }
+        try
+        {
+            Me = await api.GetMeAsync();
+            Offline = false;
+            await SaveMeAsync();
+        }
+        catch (ApiException ex) when (ex.StatusCode == 401)
+        {
+            // Signed out for real (not just offline): the saved copy must not survive on a shared phone.
+            Me = null;
+            Offline = false;
+            await cache.ClearAsync();
+        }
+        catch (HttpRequestException)
+        {
+            // No connection: stay signed in with the last copy, so the app opens in the shop or on the train.
+            Me = await cache.LoadAsync<MeDto>(OfflineCache.Keys.Me);
+            Offline = Me is not null;
+        }
         Loaded = true;
         Changed?.Invoke();
+    }
+
+    private async Task SaveMeAsync()
+    {
+        // A different person on this phone must not see the previous person's saved data.
+        var saved = await cache.LoadAsync<MeDto>(OfflineCache.Keys.Me);
+        if (saved is not null && saved.UserId != Me?.UserId) await cache.ClearAsync();
+        if (Me is not null) await cache.SaveAsync(OfflineCache.Keys.Me, Me);
     }
 
     public async Task LogoutAsync()
     {
         await api.LogoutAsync();
         Me = null;
+        Offline = false;
+        await cache.ClearAsync();
         Changed?.Invoke();
     }
 

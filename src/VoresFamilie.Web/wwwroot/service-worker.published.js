@@ -2,6 +2,8 @@
 // offline support. See https://aka.ms/blazor-offline-considerations
 
 self.importScripts('./service-worker-assets.js');
+// Push notifications and the "new version" message from the page.
+self.importScripts('./push-handlers.js');
 self.addEventListener('install', event => event.waitUntil(onInstall(event)));
 self.addEventListener('activate', event => event.waitUntil(onActivate(event)));
 self.addEventListener('fetch', event => event.respondWith(onFetch(event)));
@@ -43,7 +45,11 @@ async function onFetch(event) {
         // For all navigation requests, try to serve index.html from cache,
         // unless that request is for an offline resource.
         // If you need some URLs to be server-rendered, edit the following check to exclude those URLs
+        // The backend's own pages (Google sign-in and callback under /api, Scalar, health check) must reach the server.
+        const path = new URL(event.request.url).pathname;
+        const isBackendPath = path.startsWith('/api/') || path === '/healthz' || path.startsWith('/scalar') || path.startsWith('/openapi');
         const shouldServeIndexHtml = event.request.mode === 'navigate'
+            && !isBackendPath
             && !manifestUrlList.some(url => url === event.request.url);
 
         const request = shouldServeIndexHtml ? 'index.html' : event.request;
@@ -51,5 +57,6 @@ async function onFetch(event) {
         cachedResponse = await cache.match(request);
     }
 
+    // API calls are never cached here: the app keeps its own offline copy of the data it needs (OfflineStore).
     return cachedResponse || fetch(event.request);
 }

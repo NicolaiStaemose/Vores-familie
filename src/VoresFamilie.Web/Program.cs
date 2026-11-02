@@ -15,6 +15,9 @@ var apiMap = builder.Configuration.GetSection("ApiBaseUrls").Get<List<ApiBaseUrl
 var apiBase = apiMap.FirstOrDefault(m => string.Equals(m.From, builder.HostEnvironment.BaseAddress, StringComparison.OrdinalIgnoreCase))?.To;
 var baseAddress = new Uri(string.IsNullOrEmpty(apiBase) ? builder.HostEnvironment.BaseAddress : apiBase);builder.Services.AddScoped(sp => new HttpClient(new CookieHandler { InnerHandler = new HttpClientHandler() }) { BaseAddress = baseAddress });
 builder.Services.AddScoped<IApiClient>(sp => new ApiClient(sp.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped<IKeyValueStore, BrowserStorage>();
+builder.Services.AddScoped<OfflineCache>();
+builder.Services.AddScoped<Pwa>();
 builder.Services.AddScoped<Session>();
 builder.Services.AddScoped<Emojis>();
 

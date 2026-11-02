@@ -1,6 +1,7 @@
 @page "/mere"
 @inherits SessionComponent
 @inject NavigationManager Nav
+@inject Pwa Pwa
 
 @if (!Session.IsSignedIn)
 {
@@ -18,8 +19,10 @@
         <a href="rengoring"><span class="tile-icon">🧹</span> Rengøring</a>
         @if (Session.CanEdit(Area.Routines)) { <a href="rutiner"><span class="tile-icon">⏰</span> Rutiner og opgaver</a> }
         <a href="indstillinger/google"><span class="tile-icon">🔗</span> Google-kalendere</a>
+        <a href="mere/notifikationer"><span class="tile-icon">🔔</span> Notifikationer</a>
     }
     @if (Session.IsAdmin) { <a href="admin"><span class="tile-icon">⚙️</span> Admin</a> }
+    @if (Pwa.CanInstall) { <button @onclick="Pwa.InstallAsync"><span class="tile-icon">📲</span> Installér appen</button> }
     <button @onclick="LogoutAsync"><span class="tile-icon">🚪</span> Log ud</button>
 </div>
 

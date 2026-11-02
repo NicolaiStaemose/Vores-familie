@@ -1,23 +1,56 @@
 ﻿{
   "name": "Vores familie",
   "short_name": "Vores familie",
+  "description": "Kalender, lektier, rutiner, madplan, indkøb og rengøring for familien.",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./min-side",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#03173d",
+  "orientation": "portrait",
+  "lang": "da",
+  "dir": "ltr",
+  "background_color": "#f5f6f8",
+  "theme_color": "#ffffff",
+  "categories": [ "lifestyle", "productivity" ],
   "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
       "src": "icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Indkøb",
+      "short_name": "Indkøb",
+      "url": "./indkob",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" } ]
+    },
+    {
+      "name": "Min side",
+      "short_name": "Min side",
+      "url": "./min-side",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" } ]
+    },
+    {
+      "name": "Madplan",
+      "short_name": "Madplan",
+      "url": "./madplan",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" } ]
     }
   ]
 }
-

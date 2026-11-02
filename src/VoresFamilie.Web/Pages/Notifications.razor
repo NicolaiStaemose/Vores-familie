@@ -1,0 +1,165 @@
+@page "/mere/notifikationer"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject Pwa Pwa
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/mere/notifikationer" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+<h1>Notifikationer</h1>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+@if (_info is not null) { <p class="info" aria-live="polite">@_info</p> }
+
+@if (_loading)
+{
+    <p class="muted">Henter…</p>
+    return;
+}
+
+@if (_settings is { Available: false })
+{
+    <div class="card">
+        <p>Notifikationer er ikke sat op på serveren endnu.</p>
+        <p class="muted small">En admin skal først tilføje nøgler til notifikationer (se <code>docs/push.md</code>).</p>
+    </div>
+    return;
+}
+
+<div class="card">
+    <h2>Påmindelser kl. 07:00 og 19:00</h2>
+    <p class="muted small">
+        Om morgenen: aftensmad og det, du ikke har krydset af endnu. Om aftenen: aftenrutine, lektier og rengøring.
+        Du får kun en besked, hvis der er noget at minde om.
+    </p>
+
+    @if (!_supported)
+    {
+        <p>Denne browser kan ikke vise notifikationer. Prøv i Chrome på Android, helst med appen installeret.</p>
+    }
+    else if (_permission == "denied")
+    {
+        <p class="error">Notifikationer er blokeret for denne side. Slå dem til igen i browserens indstillinger (lås-ikonet ved adressen).</p>
+    }
+    else if (_thisPhone)
+    {
+        <p class="info">✓ Notifikationer er slået til på denne telefon.</p>
+        <button @onclick="TurnOffAsync" disabled="@_busy">Slå fra på denne telefon</button>
+    }
+    else
+    {
+        <button class="primary" @onclick="TurnOnAsync" disabled="@_busy">Slå notifikationer til</button>
+    }
+</div>
+
+@if (_settings is not null && (_thisPhone || _settings.Devices > 0))
+{
+    <div class="card">
+        <h2>Hvad vil du have?</h2>
+        <label class="check"><input type="checkbox" checked="@_settings.Morning" @onchange="e => SaveAsync((bool)e.Value!, _settings.Evening)" /> Morgen kl. 07:00</label>
+        <label class="check"><input type="checkbox" checked="@_settings.Evening" @onchange="e => SaveAsync(_settings.Morning, (bool)e.Value!)" /> Aften kl. 19:00</label>
+        <p class="muted small">@DevicesText</p>
+        <button @onclick="TestAsync" disabled="@_busy">Send en testnotifikation</button>
+    </div>
+}
+
+@if (Pwa.CanInstall)
+{
+    <div class="card">
+        <h2>Installér appen</h2>
+        <p class="muted small">Notifikationer virker bedst, når appen er installeret på startskærmen.</p>
+        <button class="primary" @onclick="Pwa.InstallAsync">Installér</button>
+    </div>
+}
+
+@code {
+    private PushSettingsDto? _settings;
+    private bool _supported, _thisPhone, _loading = true, _busy;
+    private string _permission = "default";
+    private string? _error, _info;
+
+    private string DevicesText => _settings!.Devices switch
+    {
+        0 => "Ingen telefoner er tilmeldt endnu.",
+        1 => "1 telefon er tilmeldt.",
+        var n => $"{n} telefoner er tilmeldt.",
+    };
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        try
+        {
+            await Pwa.StartAsync();
+            _supported = await Pwa.PushSupportedAsync();
+            if (_supported)
+            {
+                _permission = await Pwa.PushPermissionAsync();
+                _thisPhone = await Pwa.PushEndpointAsync() is not null && _permission == "granted";
+            }
+            _settings = await Api.GetPushSettingsAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private async Task TurnOnAsync()
+    {
+        _busy = true; _error = null; _info = null;
+        try
+        {
+            var key = (await Api.GetPushPublicKeyAsync()).Key;
+            if (string.IsNullOrEmpty(key)) { _error = "Notifikationer er ikke sat op på serveren endnu."; return; }
+            var keys = await Pwa.PushSubscribeAsync(key);
+            _permission = await Pwa.PushPermissionAsync();
+            if (keys is null) { _error = "Du sagde nej til notifikationer. Du kan slå dem til i browserens indstillinger."; return; }
+            await Api.SubscribePushAsync(new SubscribePushRequest { Endpoint = keys.Endpoint, P256dh = keys.P256dh, Auth = keys.Auth });
+            _thisPhone = true;
+            _settings = await Api.GetPushSettingsAsync();
+            _info = "Notifikationer er slået til.";
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private async Task TurnOffAsync()
+    {
+        _busy = true; _error = null; _info = null;
+        try
+        {
+            var endpoint = await Pwa.PushUnsubscribeAsync();
+            if (endpoint is not null) await Api.UnsubscribePushAsync(new UnsubscribePushRequest { Endpoint = endpoint });
+            _thisPhone = false;
+            _settings = await Api.GetPushSettingsAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveAsync(bool morning, bool evening)
+    {
+        _error = null; _info = null;
+        try { _settings = await Api.SavePushSettingsAsync(new SavePushSettingsRequest { Morning = morning, Evening = evening }); }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+    }
+
+    private async Task TestAsync()
+    {
+        _busy = true; _error = null; _info = null;
+        try
+        {
+            var result = await Api.SendTestPushAsync();
+            _info = result.Sent == 1 ? "Testnotifikationen er sendt." : $"Testnotifikationen er sendt til {result.Sent} telefoner.";
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+}

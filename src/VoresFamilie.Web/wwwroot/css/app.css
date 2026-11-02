@@ -232,3 +232,9 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .clean.today-task .status { color: var(--warn); }
 .clean.never-task { border-left-color: #8e24aa; }
 .clean.never-task .status { color: #6b21a8; }
+
+/* --- Offline / update bar --- */
+.statusbar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .55rem 1rem; font-size: .85rem; }
+.statusbar.offline { background: #fff4d6; color: #7a4b00; }
+.statusbar.update { background: var(--primary-soft); color: #1b4fb3; }
+.statusbar button { padding: .35rem .8rem; flex: none; }
