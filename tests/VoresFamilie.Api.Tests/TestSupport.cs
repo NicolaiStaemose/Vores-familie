@@ -18,6 +18,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:Provider", "Sqlite");
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={_db}");
         builder.UseSetting("Google:Mode", "Fake"); // in-memory Google with demo calendars
+        var vapid = VoresFamilie.Infrastructure.WebPushSender.GenerateKeys(); // push is on, but nothing is sent in these tests
+        builder.UseSetting("Push:PublicKey", vapid.PublicKey);
+        builder.UseSetting("Push:PrivateKey", vapid.PrivateKey);
         builder.UseSetting("DataProtection:KeysPath", Path.Combine(Path.GetTempPath(), $"vf-keys-{Guid.NewGuid():N}"));
     }
 

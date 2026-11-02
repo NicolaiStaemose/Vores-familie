@@ -10,6 +10,15 @@ using VoresFamilie.Application;
 using VoresFamilie.Domain;
 using VoresFamilie.Infrastructure;
 
+// `dotnet run --project src/VoresFamilie.Api -- generate-vapid` prints a key pair for push notifications and exits.
+if (args.Contains("generate-vapid"))
+{
+    var (publicKey, privateKey) = WebPushSender.GenerateKeys();
+    Console.WriteLine($"Push:PublicKey  = {publicKey}");
+    Console.WriteLine($"Push:PrivateKey = {privateKey}");
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -101,6 +110,7 @@ app.MapFamilyEndpoints();
 app.MapCalendarEndpoints();
 app.MapDailyEndpoints();
 app.MapHouseholdEndpoints();
+app.MapPushEndpoints();
 
 if (!string.IsNullOrEmpty(devFrontend))
 {

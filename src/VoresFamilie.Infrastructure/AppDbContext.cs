@@ -24,6 +24,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<ShoppingItem> ShoppingItems => Set<ShoppingItem>();
     public DbSet<FavoriteItem> FavoriteItems => Set<FavoriteItem>();
     public DbSet<PurchaseRecord> PurchaseRecords => Set<PurchaseRecord>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+    public DbSet<NotificationSettings> NotificationSettings => Set<NotificationSettings>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<CleaningTask> CleaningTasks => Set<CleaningTask>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -159,6 +162,34 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             e.Property(p => p.Category).HasConversion<int>();
             e.HasIndex(p => new { p.FamilyId, p.BoughtOn });
             e.HasIndex(p => p.ItemId);
+        });
+
+        b.Entity<PushSubscription>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).ValueGeneratedNever();
+            e.Property(s => s.UserId).HasMaxLength(450).IsRequired();
+            e.Property(s => s.Endpoint).HasMaxLength(PushSubscription.MaxEndpointLength).IsRequired();
+            e.Property(s => s.P256dh).HasMaxLength(200).IsRequired();
+            e.Property(s => s.Auth).HasMaxLength(100).IsRequired();
+            e.Property(s => s.CreatedAt).HasConversion(UtcTicks);
+            e.HasIndex(s => s.Endpoint).IsUnique();
+            e.HasIndex(s => s.UserId);
+        });
+
+        b.Entity<NotificationSettings>(e =>
+        {
+            e.HasKey(s => s.UserId);
+            e.Property(s => s.UserId).HasMaxLength(450);
+        });
+
+        b.Entity<NotificationLog>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.Property(l => l.Id).ValueGeneratedNever();
+            e.Property(l => l.UserId).HasMaxLength(450).IsRequired();
+            e.Property(l => l.Slot).HasConversion<int>();
+            e.HasIndex(l => new { l.UserId, l.Date, l.Slot }).IsUnique();
         });
 
         b.Entity<CleaningTask>(e =>

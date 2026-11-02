@@ -40,6 +40,13 @@ public static class DependencyInjection
         services.AddScoped<ShoppingService>();
         services.AddScoped<MealPlanService>();
         services.AddScoped<CleaningService>();
+        services.AddScoped<IPushRepository, PushRepository>();
+        services.AddScoped<PushService>();
+        services.AddScoped<DigestService>();
+        services.AddScoped<PushDispatcher>();
+        // Push:PublicKey/PrivateKey (see docs/push.md). Without them the reminders are switched off.
+        services.AddSingleton<IPushSender, WebPushSender>();
+        services.AddHostedService<PushHostedService>();
 
         // Google:Mode=Fake runs the calendar features against an in-memory Google (no Google Cloud project needed).
         if (string.Equals(config["Google:Mode"], "Fake", StringComparison.OrdinalIgnoreCase))
