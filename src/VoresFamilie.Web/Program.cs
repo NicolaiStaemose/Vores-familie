@@ -7,18 +7,19 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Same origin as the API (reverse proxy routes /api to the backend); cookies are sent automatically.
-// In production the API is on the same origin (reverse proxy). In development the Web dev server is separate, so ApiBaseUrl points at the API.
-// The auth cookie is SameSite=Lax and http/https count as different sites, so the API must use the same scheme as the page.
-var isHttps = builder.HostEnvironment.BaseAddress.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
-var apiBase = isHttps ? builder.Configuration["ApiBaseUrlHttps"] ?? builder.Configuration["ApiBaseUrl"] : builder.Configuration["ApiBaseUrl"];
-var baseAddress = new Uri(string.IsNullOrEmpty(apiBase) ? builder.HostEnvironment.BaseAddress : apiBase);
-builder.Services.AddScoped(sp => new HttpClient(new CookieHandler { InnerHandler = new HttpClientHandler() }) { BaseAddress = baseAddress });
+// In production (and behind the dev proxy / a dev tunnel) the page and the API share one origin, so cookies just work.
+// Only when the page is opened on the separate Web dev server (Visual Studio F5) do we call the API on its own port.
+// "ApiBaseUrls" in appsettings.Development.json lists those page addresses and the matching API addresses;
+// http and https must match, because the auth cookie is SameSite=Lax.
+var apiMap = builder.Configuration.GetSection("ApiBaseUrls").Get<List<ApiBaseUrl>>() ?? [];
+var apiBase = apiMap.FirstOrDefault(m => string.Equals(m.From, builder.HostEnvironment.BaseAddress, StringComparison.OrdinalIgnoreCase))?.To;
+var baseAddress = new Uri(string.IsNullOrEmpty(apiBase) ? builder.HostEnvironment.BaseAddress : apiBase);builder.Services.AddScoped(sp => new HttpClient(new CookieHandler { InnerHandler = new HttpClientHandler() }) { BaseAddress = baseAddress });
 builder.Services.AddScoped<IApiClient>(sp => new ApiClient(sp.GetRequiredService<HttpClient>()));
 builder.Services.AddScoped<Session>();
 builder.Services.AddScoped<Emojis>();
 
 await builder.Build().RunAsync();
 
-
+/// <summary>One entry of ApiBaseUrls: the page address and the API address it should talk to.</summary>
+public sealed record ApiBaseUrl(string From, string To);
 

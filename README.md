@@ -2,7 +2,7 @@
 
 Familieapp (Android, installeret PWA): fælles kalender, lektier, opgaver, madplan m.m. Se [CLAUDE.md](CLAUDE.md) for mål, stack og faser.
 
-**Status: fase 3** – login, familier og rettigheder (fase 1), kalendere med tovejs-synk til Google Kalender og lektier (fase 2) samt morgen- og aftenrutiner, daglige opgaver i hjemmet og en fælles ToDo-liste (fase 3).
+**Status: fase 4** – login, familier og rettigheder (fase 1), kalendere med tovejs-synk til Google Kalender og lektier (fase 2), rutiner, daglige opgaver og ToDo (fase 3) samt madplan, indkøbsliste og rengøringsplan (fase 4).
 
 ## Arkitektur
 
@@ -30,6 +30,8 @@ Valgfrit Google-login: kopiér `.env.example` til `.env` og udfyld `GOOGLE_CLIEN
 
 Uden Docker: `dotnet user-secrets` i `src/VoresFamilie.Api` og `dotnet run`.
 
+Vil du prøve appen på en telefon, så se [docs/dev-tunnel.md](docs/dev-tunnel.md).
+
 ## Kalendere og Google
 
 Se [docs/google-setup.md](docs/google-setup.md). I Development kører API'et som standard med en indbygget demo-Google (`Google:Mode=Fake`), så kalender og lektier kan prøves uden Google-konto. `https://localhost:7222/scalar` viser og tester API'et.
@@ -39,6 +41,13 @@ Se [docs/google-setup.md](docs/google-setup.md). I Development kører API'et som
 - **Min side** er den daglige oversigt for ét familiemedlem: morgenrutine, aftenrutine, dagens opgaver, ToDo og kalender for en dag. Man kan gå en dag frem eller tilbage; kun i dag og i går kan krydses af, og alt nulstilles hver dag.
 - **Rutiner** (menuen "Rutiner", kræver redigeringsret til området Rutiner): sæt punkter op pr. barn og husopgaver med ugedage og ansvarlig.
 - **ToDo**: fælles liste med ansvarlig og frist.
+
+## Madplan, indkøb og rengøring
+
+- **Madplan:** aftensmad pr. dag med ingredienser. Retter kan gemmes og genbruges, og en dag eller hele ugen kan lægges på indkøbslisten (uden dubletter).
+- **Indkøb:** liste grupperet efter butikkens afdelinger (foreslås automatisk ud fra navnet), mængde, faste varer, "Ryd købte" og forslag til varer, I køber omkring hver uge (mindst 3 indkøbsdage inden for 8 uger).
+- **Rengøring:** opgaver pr. rum med interval og "sidst gjort". Forfaldne opgaver er markeret, og Min side viser dem for den, de hører til.
+- Rettighederne styres pr. område (Madplan, Indkøb, Rengøring) på Admin-siden.
 
 ## Test
 
@@ -55,5 +64,7 @@ dotnet test VoresFamilie.slnx
 ## Sikkerhed
 
 Cookie-login (HttpOnly, SameSite=Lax). API'et accepterer kun JSON og har ingen CORS, så andre sites ikke kan sende state-ændrende kald; yderligere antiforgery kan tilføjes senere.
+
+
 
 

@@ -34,6 +34,12 @@ public static class DependencyInjection
         services.AddScoped<ITodoRepository, TodoRepository>();
         services.AddScoped<ChecklistService>();
         services.AddScoped<TodoService>();
+        services.AddScoped<IMealRepository, MealRepository>();
+        services.AddScoped<IShoppingRepository, ShoppingRepository>();
+        services.AddScoped<ICleaningRepository, CleaningRepository>();
+        services.AddScoped<ShoppingService>();
+        services.AddScoped<MealPlanService>();
+        services.AddScoped<CleaningService>();
 
         // Google:Mode=Fake runs the calendar features against an in-memory Google (no Google Cloud project needed).
         if (string.Equals(config["Google:Mode"], "Fake", StringComparison.OrdinalIgnoreCase))
@@ -138,6 +144,7 @@ public static class DependencyInjection
         }
     }
 }
+
 
 
 

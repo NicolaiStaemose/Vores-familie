@@ -1,4 +1,6 @@
-﻿namespace VoresFamilie.Web;
+﻿using VoresFamilie.Web.Api;
+
+namespace VoresFamilie.Web;
 
 /// <summary>Danish date/time text. Written by hand so it works without browser globalization data.</summary>
 public static class Dk
@@ -35,7 +37,42 @@ public static class Dk
         return string.Join(", ", DayShortNames.Where((_, i) => (mask & (1 << i)) != 0));
     }
 
+    public static string CategoryName(ShoppingCategory c) => c switch
+    {
+        ShoppingCategory.FruitVeg => "Frugt og grønt",
+        ShoppingCategory.Dairy => "Mejeri",
+        ShoppingCategory.Meat => "Kød og fisk",
+        ShoppingCategory.Bread => "Brød",
+        ShoppingCategory.Pantry => "Kolonial",
+        ShoppingCategory.Frozen => "Frost",
+        ShoppingCategory.Drinks => "Drikkevarer",
+        ShoppingCategory.Household => "Husholdning",
+        _ => "Andet",
+    };
+
+    /// <summary>The order of the departments on a trip through the shop.</summary>
+    public static readonly ShoppingCategory[] CategoryOrder =
+    [
+        ShoppingCategory.FruitVeg, ShoppingCategory.Bread, ShoppingCategory.Dairy, ShoppingCategory.Meat, ShoppingCategory.Pantry,
+        ShoppingCategory.Drinks, ShoppingCategory.Frozen, ShoppingCategory.Household, ShoppingCategory.Other,
+    ];
+
+    /// <summary>"i dag", "i går", "for 3 dage siden" or the date.</summary>
+    public static string DaysAgo(DateOnly date, DateOnly today)
+    {
+        var diff = today.DayNumber - date.DayNumber;
+        return diff switch
+        {
+            0 => "i dag",
+            1 => "i går",
+            > 1 and < 14 => $"for {diff} dage siden",
+            _ => DayShort(date.ToDateTime(TimeOnly.MinValue)),
+        };
+    }
+
     public static DateTimeOffset Local(DateTime localDateTime) =>
         new(DateTime.SpecifyKind(localDateTime, DateTimeKind.Local));
 }
+
+
 

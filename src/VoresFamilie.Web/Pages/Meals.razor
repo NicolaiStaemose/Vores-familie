@@ -1,0 +1,252 @@
+﻿@page "/madplan"
+@inherits SessionComponent
+@inject IApiClient Api
+@inject IJSRuntime JS
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/madplan" />
+    return;
+}
+@if (Session.Family is null)
+{
+    <p>Opret eller join en familie først.</p>
+    return;
+}
+
+<h1>Madplan</h1>
+
+<div class="week-nav">
+    <button class="link" @onclick="() => MoveWeek(-1)" aria-label="Forrige uge">‹</button>
+    <strong>Uge @Dk.Week(_weekStart) · @Dk.DayShort(_weekStart) – @Dk.DayShort(_weekStart.AddDays(6))</strong>
+    <button class="link" @onclick="() => MoveWeek(1)" aria-label="Næste uge">›</button>
+    <button class="link" @onclick="GoToday">I dag</button>
+</div>
+
+@if (_error is not null) { <p class="error">@_error</p> }
+@if (_info is not null) { <p class="info" aria-live="polite">@_info</p> }
+
+@if (_loading)
+{
+    <p class="muted">Henter…</p>
+}
+else
+{
+    @for (var i = 0; i < 7; i++)
+    {
+        var day = _weekStart.AddDays(i);
+        var date = DateOnly.FromDateTime(day);
+        var meal = _meals.FirstOrDefault(m => m.Date == date);
+        <button class="meal @(day.Date == DateTime.Today ? "today" : "")" @onclick="() => Open(date, meal)" disabled="@(!CanEdit)">
+            <span class="day-name">@Dk.Day(day)</span>
+            @if (meal is null)
+            {
+                <span class="muted">@(CanEdit ? "Tryk for at planlægge aftensmad" : "Ikke planlagt")</span>
+            }
+            else
+            {
+                <span class="title">@meal.Title</span>
+                @if (!string.IsNullOrEmpty(meal.Notes)) { <span class="meta">@meal.Notes</span> }
+            }
+        </button>
+    }
+
+    @if (CanShop && _meals.Any(m => m.Ingredients.Count > 0))
+    {
+        <button class="primary" @onclick="AddWeekToListAsync" disabled="@_busy">Læg ugens ingredienser på indkøbslisten</button>
+    }
+}
+
+@if (_form is not null)
+{
+    <section class="card" id="meal-form">
+        <h2>Aftensmad @Dk.Day(_form.Date.ToDateTime(TimeOnly.MinValue))</h2>
+        @if (_dishes.Count > 0)
+        {
+            <label>Vælg en gemt ret
+                <select @onchange="e => PickDish(e.Value?.ToString())">
+                    <option value="">–</option>
+                    @foreach (var d in _dishes) { <option value="@d.Id">@d.Name</option> }
+                </select>
+            </label>
+        }
+        <label>Hvad skal vi spise? <input @bind="_form.Title" maxlength="300" /></label>
+        <label>Note <input @bind="_form.Notes" maxlength="2000" placeholder="Fx gæster, tidspunkt …" /></label>
+        <div>
+            Ingredienser
+            @foreach (var row in _form.Ingredients)
+            {
+                <div class="row ingredient">
+                    <input class="grow" placeholder="Vare" @bind="row.Name" maxlength="200" />
+                    <input class="qty" placeholder="Mængde" @bind="row.Quantity" maxlength="100" />
+                    <button class="link danger" aria-label="Fjern" @onclick="() => _form.Ingredients.Remove(row)">✕</button>
+                </div>
+            }
+            <button class="link" @onclick="() => _form.Ingredients.Add(new IngredientRow())">+ Tilføj ingrediens</button>
+        </div>
+        @if (_formError is not null) { <p class="error">@_formError</p> }
+        <div class="row wrap">
+            <button class="primary" @onclick="SaveAsync" disabled="@_busy">Gem</button>
+            @if (CanShop) { <button @onclick="SaveAndAddToListAsync" disabled="@_busy">Gem og læg på indkøbslisten</button> }
+            <button class="link" @onclick="SaveAsDishAsync" disabled="@_busy">Gem som ret</button>
+            <button class="link" @onclick="() => _form = null">Annullér</button>
+            @if (_form.Exists) { <button class="link danger" @onclick="ClearAsync" disabled="@_busy">Fjern fra planen</button> }
+        </div>
+    </section>
+}
+
+@code {
+    private sealed class IngredientRow
+    {
+        public string Name { get; set; } = "";
+        public string? Quantity { get; set; }
+    }
+
+    private sealed class Form
+    {
+        public DateOnly Date;
+        public bool Exists;
+        public Guid? DishId;
+        public string Title = "";
+        public string? Notes;
+        public List<IngredientRow> Ingredients = [];
+    }
+
+    private DateTime _weekStart = Dk.WeekStart(DateTime.Today);
+    private List<MealDto> _meals = [];
+    private List<DishDto> _dishes = [];
+    private Form? _form;
+    private bool _loading = true, _busy;
+    private string? _error, _info, _formError;
+
+    private bool CanEdit => Session.CanEdit(Area.MealPlan);
+    private bool CanShop => Session.CanEdit(Area.Shopping);
+
+    protected override async Task OnSignedInAsync()
+    {
+        if (Session.Family is null) { _loading = false; return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var from = DateOnly.FromDateTime(_weekStart);
+            _meals = (await Api.ListMealsAsync(from, from.AddDays(6))).ToList();
+            _dishes = (await Api.ListDishesAsync()).ToList();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _loading = false; }
+    }
+
+    private Task MoveWeek(int weeks) { _weekStart = _weekStart.AddDays(7 * weeks); _form = null; _info = null; return LoadAsync(); }
+    private Task GoToday() { _weekStart = Dk.WeekStart(DateTime.Today); _form = null; _info = null; return LoadAsync(); }
+
+    private void Open(DateOnly date, MealDto? meal)
+    {
+        _formError = null; _info = null;
+        _form = new Form
+        {
+            Date = date,
+            Exists = meal is not null,
+            DishId = meal?.DishId,
+            Title = meal?.Title ?? "",
+            Notes = meal?.Notes,
+            Ingredients = meal?.Ingredients.Select(i => new IngredientRow { Name = i.Name, Quantity = i.Quantity }).ToList() ?? [],
+        };
+    }
+
+    private void PickDish(string? id)
+    {
+        if (_form is null || !Guid.TryParse(id, out var guid)) return;
+        var dish = _dishes.FirstOrDefault(d => d.Id == guid);
+        if (dish is null) return;
+        // The ingredients are copied, so changes on this day never change the saved dish.
+        _form.DishId = dish.Id;
+        _form.Title = dish.Name;
+        _form.Ingredients = dish.Ingredients.Select(i => new IngredientRow { Name = i.Name, Quantity = i.Quantity }).ToList();
+    }
+
+    private SaveMealRequest ToRequest(Form f) => new()
+    {
+        Title = f.Title.Trim(),
+        Notes = f.Notes,
+        DishId = f.DishId,
+        Ingredients = f.Ingredients.Where(r => !string.IsNullOrWhiteSpace(r.Name))
+            .Select(r => new IngredientDto { Name = r.Name.Trim(), Quantity = r.Quantity }).ToList(),
+    };
+
+    private async Task<bool> PersistAsync()
+    {
+        if (_form is null) return false;
+        if (string.IsNullOrWhiteSpace(_form.Title)) { _formError = "Skriv, hvad der skal spises."; return false; }
+        _busy = true; _formError = null;
+        try
+        {
+            await Api.SetMealAsync(_form.Date, ToRequest(_form));
+            _form.Exists = true;
+            return true;
+        }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); return false; }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!await PersistAsync()) return;
+        _form = null; _info = "Gemt.";
+        await LoadAsync();
+    }
+
+    private async Task SaveAndAddToListAsync()
+    {
+        if (_form is null) return;
+        var date = _form.Date;
+        if (!await PersistAsync()) return;
+        _form = null;
+        await AddRangeToListAsync(date, date);
+    }
+
+    private Task AddWeekToListAsync()
+    {
+        var from = DateOnly.FromDateTime(_weekStart);
+        return AddRangeToListAsync(from, from.AddDays(6));
+    }
+
+    private async Task AddRangeToListAsync(DateOnly from, DateOnly to)
+    {
+        _busy = true; _error = null; _info = null;
+        try
+        {
+            var r = await Api.AddMealsToShoppingListAsync(new AddMealsToShoppingListRequest { From = from, To = to });
+            _info = r.Added == 0 && r.AlreadyOnList == 0 ? "Der var ingen ingredienser at lægge på listen."
+                : $"{r.Added} lagt på indkøbslisten" + (r.AlreadyOnList > 0 ? $", {r.AlreadyOnList} stod der allerede." : ".");
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Session.ErrorMessage(ex); }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveAsDishAsync()
+    {
+        if (!await PersistAsync() || _form is null) return;
+        try
+        {
+            var dish = await Api.SaveMealAsDishAsync(_form.Date);
+            _form.DishId = dish.Id;
+            _info = $"\"{dish.Name}\" er gemt som ret.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); }
+    }
+
+    private async Task ClearAsync()
+    {
+        if (_form is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "Fjern aftensmaden fra planen?")) return;
+        try { await Api.ClearMealAsync(_form.Date); _form = null; await LoadAsync(); }
+        catch (Exception ex) { _formError = Session.ErrorMessage(ex); }
+    }
+}

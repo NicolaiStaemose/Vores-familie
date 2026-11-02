@@ -50,7 +50,7 @@ else
             <h3>@Dk.Day(group.Key)@(late ? " · tidligere" : "")</h3>
             @foreach (var item in group)
             {
-                <label class="homework @(item.Done ? "done" : "") @(late && !item.Done ? "late" : "")">
+                <label class="homework @(item.Done ? "done" : "") @(late && !item.Done ? "late" : "")" @key="@(item.CalendarId + "/" + item.EventId)">
                     <input type="checkbox" checked="@item.Done" disabled="@(!item.CanCheck || _busy.Contains(Key(item)))"
                            @onchange="e => ToggleAsync(item, (bool)e.Value!)" />
                     <span class="text">
@@ -125,3 +125,4 @@ else
         finally { _busy.Remove(key); }
     }
 }
+

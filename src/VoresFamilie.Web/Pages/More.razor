@@ -1,0 +1,32 @@
+@page "/mere"
+@inherits SessionComponent
+@inject NavigationManager Nav
+
+@if (!Session.IsSignedIn)
+{
+    <Login ReturnUrl="/mere" />
+    return;
+}
+
+<h1>Mere</h1>
+
+<div class="menu-list">
+    @if (Session.Family is not null)
+    {
+        <a href="lektier"><span class="tile-icon">📚</span> Lektier</a>
+        <a href="todo"><span class="tile-icon">✅</span> ToDo</a>
+        <a href="rengoring"><span class="tile-icon">🧹</span> Rengøring</a>
+        @if (Session.CanEdit(Area.Routines)) { <a href="rutiner"><span class="tile-icon">⏰</span> Rutiner og opgaver</a> }
+        <a href="indstillinger/google"><span class="tile-icon">🔗</span> Google-kalendere</a>
+    }
+    @if (Session.IsAdmin) { <a href="admin"><span class="tile-icon">⚙️</span> Admin</a> }
+    <button @onclick="LogoutAsync"><span class="tile-icon">🚪</span> Log ud</button>
+</div>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        await Session.LogoutAsync();
+        Nav.NavigateTo("/", forceLoad: false);
+    }
+}
