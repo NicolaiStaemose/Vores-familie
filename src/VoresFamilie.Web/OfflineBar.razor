@@ -1,11 +1,18 @@
 @implements IDisposable
 @inject Pwa Pwa
 @inject Session Session
+@inject ShoppingOffline Shopping
 
 @if (!Pwa.Online || Session.Offline)
 {
     <div class="statusbar offline" role="status">
         <span>📡 Du er offline. Du ser den gemte udgave@(PendingText).</span>
+    </div>
+}
+else if (Shopping.Pending > 0)
+{
+    <div class="statusbar offline" role="status">
+        <span>Sender @Shopping.Pending ændring@(Shopping.Pending == 1 ? "" : "er") fra indkøbslisten…</span>
     </div>
 }
 @if (Pwa.UpdateReady)
@@ -17,15 +24,15 @@
 }
 
 @code {
-    /// <summary>Changes made offline that are waiting to be sent (set by the shopping list).</summary>
-    [Parameter] public int Pending { get; set; }
-
-    private string PendingText => Pending > 0 ? $". {Pending} ændring{(Pending == 1 ? "" : "er")} sendes, når nettet er tilbage" : "";
+    private string PendingText => Shopping.Pending > 0
+        ? $". {Shopping.Pending} ændring{(Shopping.Pending == 1 ? "" : "er")} sendes, når nettet er tilbage"
+        : "";
 
     protected override void OnInitialized()
     {
         Pwa.Changed += OnChanged;
         Session.Changed += OnChanged;
+        Shopping.Changed += OnChanged;
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
@@ -34,5 +41,6 @@
     {
         Pwa.Changed -= OnChanged;
         Session.Changed -= OnChanged;
+        Shopping.Changed -= OnChanged;
     }
 }

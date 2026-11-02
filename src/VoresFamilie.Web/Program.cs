@@ -18,6 +18,8 @@ builder.Services.AddScoped<IApiClient>(sp => new ApiClient(sp.GetRequiredService
 builder.Services.AddScoped<IKeyValueStore, BrowserStorage>();
 builder.Services.AddScoped<OfflineCache>();
 builder.Services.AddScoped<Pwa>();
+builder.Services.AddScoped<IShoppingRemote, ApiShoppingRemote>();
+builder.Services.AddScoped<ShoppingOffline>();
 builder.Services.AddScoped<Session>();
 builder.Services.AddScoped<Emojis>();
 

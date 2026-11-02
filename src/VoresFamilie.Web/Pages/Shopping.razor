@@ -2,6 +2,8 @@
 @inherits SessionComponent
 @inject IApiClient Api
 @inject IJSRuntime JS
+@inject ShoppingOffline Offline
+@inject Pwa Pwa
 
 @if (!Session.IsSignedIn)
 {
@@ -37,7 +39,7 @@
             <button class="primary" disabled="@(string.IsNullOrWhiteSpace(_name) || _busy)" @onclick="SaveAsync">@(_editing is null ? "Tilføj" : "Gem")</button>
             @if (_editing is null)
             {
-                <button class="link" disabled="@(string.IsNullOrWhiteSpace(_name) || _busy)" @onclick="SaveFavoriteAsync">☆ Gem som fast vare</button>
+                <button class="link" disabled="@(string.IsNullOrWhiteSpace(_name) || _busy || _fromCopy)" @onclick="SaveFavoriteAsync">☆ Gem som fast vare</button>
             }
             else
             {
@@ -46,6 +48,8 @@
         </div>
     </section>
 
+    @if (!_fromCopy)
+    {
     <details class="checklist" open="@(_favorites.Count > 0)">
         <summary><strong>Faste varer</strong> <span class="muted small">tryk for at lægge på listen</span></summary>
         <div class="chips">
@@ -60,6 +64,7 @@
         </div>
         @if (_favorites.Count > 0) { <button class="link" @onclick="() => _manage = !_manage">@(_manage ? "Færdig" : "Redigér faste varer")</button> }
     </details>
+    }
 
     @if (_habits.Count > 0)
     {
@@ -105,11 +110,12 @@ else
                     <span class="text">
                         <span class="title">@item.Name@if (!string.IsNullOrEmpty(item.Quantity)) { <span class="badge">@item.Quantity</span> }</span>
                         @if (item.IsBought && item.BoughtByName is { } who) { <span class="meta">Købt af @who</span> }
+                        @if (Offline.IsNotSentYet(item.Id)) { <span class="meta">Sendes, når nettet er tilbage</span> }
                     </span>
                     @if (CanEdit)
                     {
                         <span class="actions">
-                            <button class="link" aria-label="Redigér" @onclick="() => Edit(item)">✎</button>
+                            <button class="link" aria-label="Redigér" disabled="@(_fromCopy || Offline.IsNotSentYet(item.Id))" @onclick="() => Edit(item)">✎</button>
                             <button class="link danger" aria-label="Slet" @onclick="() => DeleteAsync(item)">✕</button>
                         </span>
                     }
@@ -118,7 +124,7 @@ else
         </section>
     }
 
-    @if (CanEdit && _items.Any(i => i.IsBought))
+    @if (CanEdit && !_fromCopy && _items.Any(i => i.IsBought))
     {
         <button class="primary" @onclick="ClearBoughtAsync">Ryd købte (@_items.Count(i => i.IsBought))</button>
     }
@@ -134,7 +140,7 @@ else
     private string? _quantity;
     private ShoppingCategory? _suggested;
     private CancellationTokenSource? _suggestCts;
-    private bool _loading = true, _busy, _manage;
+    private bool _loading = true, _busy, _manage, _fromCopy, _watching;
     private string? _error, _info;
 
     private bool CanEdit => Session.CanEdit(Area.Shopping);
@@ -142,24 +148,43 @@ else
     protected override async Task OnSignedInAsync()
     {
         if (Session.Family is null) { _loading = false; return; }
+        if (!_watching) { Pwa.CameOnline += OnCameOnline; _watching = true; }
         await LoadAsync();
+    }
+
+    // The connection is back: show the list as the server now has it (the layout sends the queued changes).
+    private async void OnCameOnline()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    public override void Dispose()
+    {
+        Pwa.CameOnline -= OnCameOnline;
+        base.Dispose();
     }
 
     private async Task LoadAsync()
     {
         try
         {
-            _items = (await Api.ListShoppingAsync()).ToList();
-            _favorites = (await Api.ListFavoritesAsync()).ToList();
+            // Without a connection this is the saved copy plus the changes made since (see ShoppingOffline).
+            var view = await Offline.GetAsync();
+            _items = view.Items;
+            _fromCopy = view.FromSavedCopy;
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _loading = false; }
-        await LoadHabitsAsync();
+        await LoadExtrasAsync();
     }
 
-    // Suggestions are a nice extra: a hiccup here must not break the list.
-    private async Task LoadHabitsAsync()
+    // Regular items and suggestions are nice extras that need a connection: a hiccup here must not break the list.
+    private async Task LoadExtrasAsync()
     {
+        if (_fromCopy) { _favorites = []; _habits = []; return; }
+        try { _favorites = (await Api.ListFavoritesAsync()).ToList(); }
+        catch (Exception) { _favorites = []; }
         try { _habits = CanEdit ? (await Api.ListShoppingHabitsAsync()).ToList() : []; }
         catch (Exception) { _habits = []; }
     }
@@ -231,7 +256,16 @@ else
         _busy = true; _error = null; _info = null;
         try
         {
-            if (_editing is null) await Api.AddShoppingItemAsync(Request());
+            if (_editing is null)
+            {
+                // Checked here as well, because without a connection the server cannot say it.
+                if (_items.Any(i => !i.IsBought && string.Equals(i.Name, _name.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    _error = "Den står allerede på listen.";
+                    return;
+                }
+                await Offline.AddAsync(Request());
+            }
             else await Api.UpdateShoppingItemAsync(_editing.Id, Request());
             ResetForm();
             await LoadAsync();
@@ -252,7 +286,7 @@ else
         _pending.Add(item.Id); _error = null; _info = null;
         try
         {
-            if (bought) await Api.MarkShoppingBoughtAsync(item.Id); else await Api.UnmarkShoppingBoughtAsync(item.Id);
+            await Offline.SetBoughtAsync(item.Id, bought);
             await LoadAsync();
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); await LoadAsync(); }
@@ -261,7 +295,7 @@ else
 
     private async Task DeleteAsync(ShoppingItemDto item)
     {
-        try { await Api.DeleteShoppingItemAsync(item.Id); await LoadAsync(); }
+        try { await Offline.DeleteAsync(item.Id); await LoadAsync(); }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 

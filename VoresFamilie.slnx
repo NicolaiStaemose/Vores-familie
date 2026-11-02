@@ -10,5 +10,6 @@
     <Project Path="tests/VoresFamilie.Api.Tests/VoresFamilie.Api.Tests.csproj" />
     <Project Path="tests/VoresFamilie.Application.Tests/VoresFamilie.Application.Tests.csproj" />
     <Project Path="tests/VoresFamilie.Domain.Tests/VoresFamilie.Domain.Tests.csproj" />
+    <Project Path="tests/VoresFamilie.Web.Tests/VoresFamilie.Web.Tests.csproj" />
   </Folder>
 </Solution>

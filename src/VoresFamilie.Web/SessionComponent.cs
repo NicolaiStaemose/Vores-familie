@@ -31,5 +31,5 @@ public abstract class SessionComponent : ComponentBase, IDisposable
         StateHasChanged();
     });
 
-    public void Dispose() => Session.Changed -= OnSessionChanged;
+    public virtual void Dispose() => Session.Changed -= OnSessionChanged;
 }

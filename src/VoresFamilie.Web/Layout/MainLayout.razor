@@ -3,6 +3,7 @@
 @inject Session Session
 @inject Emojis Emojis
 @inject Pwa Pwa
+@inject ShoppingOffline Shopping
 @inject NavigationManager Nav
 
 <header class="topbar">
@@ -52,13 +53,20 @@
         Session.Changed += StateHasChanged;
         Nav.LocationChanged += OnLocationChanged;
         Pwa.CameOnline += OnCameOnline;
+        Session.LoggedOut += Shopping.Reset;
         await Emojis.InitAsync();
         await Pwa.StartAsync();
         await Session.RefreshAsync();
+        // Changes made offline earlier (the app may have been closed since) are sent as soon as there is a connection.
+        if (Session.IsSignedIn && !Session.Offline) await Shopping.FlushAsync();
     }
 
-    // The connection is back: check who is signed in (the saved copy may be out of date).
-    private async void OnCameOnline() => await Session.RefreshAsync();
+    // The connection is back: check who is signed in (the saved copy may be out of date) and send what was done offline.
+    private async void OnCameOnline()
+    {
+        await Session.RefreshAsync();
+        if (Session.IsSignedIn && !Session.Offline) await Shopping.FlushAsync();
+    }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => StateHasChanged();
 
@@ -67,5 +75,6 @@
         Session.Changed -= StateHasChanged;
         Nav.LocationChanged -= OnLocationChanged;
         Pwa.CameOnline -= OnCameOnline;
+        Session.LoggedOut -= Shopping.Reset;
     }
 }

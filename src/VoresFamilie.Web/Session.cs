@@ -18,6 +18,8 @@ public sealed class Session(IApiClient api, OfflineCache cache)
         Family?.Me.Permissions.TryGetValue(area.ToString(), out var level) == true && level == AccessLevel.Edit;
 
     public event Action? Changed;
+    /// <summary>Raised when the saved offline copy has been removed (log out, or the sign-in ended).</summary>
+    public event Action? LoggedOut;
 
     public async Task RefreshAsync()
     {
@@ -33,6 +35,7 @@ public sealed class Session(IApiClient api, OfflineCache cache)
             Me = null;
             Offline = false;
             await cache.ClearAsync();
+            LoggedOut?.Invoke();
         }
         catch (HttpRequestException)
         {
@@ -48,7 +51,11 @@ public sealed class Session(IApiClient api, OfflineCache cache)
     {
         // A different person on this phone must not see the previous person's saved data.
         var saved = await cache.LoadAsync<MeDto>(OfflineCache.Keys.Me);
-        if (saved is not null && saved.UserId != Me?.UserId) await cache.ClearAsync();
+        if (saved is not null && saved.UserId != Me?.UserId)
+        {
+            await cache.ClearAsync();
+            LoggedOut?.Invoke();
+        }
         if (Me is not null) await cache.SaveAsync(OfflineCache.Keys.Me, Me);
     }
 
@@ -58,6 +65,7 @@ public sealed class Session(IApiClient api, OfflineCache cache)
         Me = null;
         Offline = false;
         await cache.ClearAsync();
+        LoggedOut?.Invoke();
         Changed?.Invoke();
     }
 
