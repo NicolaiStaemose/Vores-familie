@@ -1,6 +1,8 @@
 ﻿@page "/min-side"
 @inherits SessionComponent
 @inject IApiClient Api
+@inject OfflineCache Cache
+@inject Pwa Pwa
 
 @if (!Session.IsSignedIn)
 {
@@ -26,6 +28,10 @@
 }
 
 @if (_error is not null) { <p class="error">@_error</p> }
+@if (_fromCopy)
+{
+    <p class="muted small">Gemt udgave fra @Dk.DateTimeText(_savedAt). Du kan krydse af igen, når du er online.</p>
+}
 
 @if (_loading)
 {
@@ -46,7 +52,7 @@
     <div class="card"><div class="row"><span>🍽️ <strong>Aftensmad:</strong> @_meal.Title</span><a href="madplan">Madplan</a></div></div>
 }
 
-@if (_checklist is { CanTickDate: false }) { <p class="muted small">Denne dag kan kun ses, ikke krydses af.</p> }
+@if (!_fromCopy && _checklist is { CanTickDate: false }) { <p class="muted small">Denne dag kan kun ses, ikke krydses af.</p> }
 
 @if (Morning.Count > 0) { <ChecklistSection Title="Morgenrutine" Entries="Morning" Open="@(_day != DateTime.Today || DateTime.Now.Hour < 12)" Busy="_busy" OnToggle="ToggleAsync" /> }
 @if (Evening.Count > 0) { <ChecklistSection Title="Aftenrutine" Entries="Evening" Open="@(_day != DateTime.Today || DateTime.Now.Hour >= 12)" Busy="_busy" OnToggle="ToggleAsync" /> }
@@ -120,7 +126,9 @@ else
     private List<TodoDto> _myTodos = [];
     private readonly HashSet<Guid> _busy = [];
     private DateTime _day = DateTime.Today;
-    private bool _loading = true, _loadingDay, _saved;
+    private bool _loading = true, _loadingDay, _saved, _fromCopy, _watching;
+    private DateTimeOffset _savedAt;
+    private DateTime _copyDay;
     private string? _error;
 
     private IReadOnlyList<ChecklistEntryDto> Morning => Entries(e => e.Part == RoutineSlot.Morning);
@@ -152,21 +160,74 @@ else
     protected override async Task OnSignedInAsync()
     {
         if (Session.Family is null) { _loading = false; return; }
+        if (!_watching) { Pwa.CameOnline += OnCameOnline; _watching = true; }
+        await StartAsync();
+    }
+
+    private async Task StartAsync()
+    {
         try
         {
             var all = (await Api.ListMembersAsync()).ToList();
-            var me = Session.Family.Me.Id;
+            var me = Session.Family!.Me.Id;
             // Children see themselves; adults can look at each family member.
             _members = Session.Family.Me.Role == Role.Barn ? all.Where(m => m.Id == me).ToList() : all;
             _who = _members.FirstOrDefault(m => m.Id == me) ?? _members.FirstOrDefault();
             await LoadAsync();
         }
+        catch (HttpRequestException) { await ShowSavedCopyAsync(); }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); _loading = false; }
+    }
+
+    // The connection is back: replace the saved copy with fresh data.
+    private async void OnCameOnline()
+    {
+        if (!_fromCopy) return;
+        await StartAsync();
+        StateHasChanged();
+    }
+
+    public override void Dispose()
+    {
+        Pwa.CameOnline -= OnCameOnline;
+        base.Dispose();
+    }
+
+    // The copy only exists for the signed-in person and today, so it can be offered when there is no connection.
+    private bool IsMineToday => _who is not null && _who.Id == Session.Family?.Me.Id && _day.Date == DateTime.Today;
+
+    private async Task SaveCopyAsync()
+    {
+        if (!IsMineToday || _fromCopy) return;
+        await Cache.SaveAsync(OfflineCache.Keys.MyPage, new MyPageSnapshot
+        {
+            Date = DateOnly.FromDateTime(_day), SavedAt = DateTimeOffset.UtcNow, Calendars = _calendars, Events = _events,
+            Homework = _homework, Checklist = _checklist, Meal = _meal, CleaningDue = _cleaningDue, Todos = _myTodos,
+        });
+    }
+
+    private async Task ShowSavedCopyAsync()
+    {
+        var copy = await Cache.LoadAsync<MyPageSnapshot>(OfflineCache.Keys.MyPage);
+        if (copy is null || Session.Family is null)
+        {
+            _error = "Der kunne ikke oprettes forbindelse til serveren.";
+            _loading = false;
+            return;
+        }
+        copy.MakeReadOnly();
+        _members = [Session.Family.Me];
+        _who = Session.Family.Me;
+        _day = copy.Date.ToDateTime(TimeOnly.MinValue);
+        _calendars = copy.Calendars; _events = copy.Events; _homework = copy.Homework; _checklist = copy.Checklist;
+        _meal = copy.Meal; _cleaningDue = copy.CleaningDue; _myTodos = copy.Todos;
+        _savedAt = copy.SavedAt; _copyDay = _day;
+        _fromCopy = true; _error = null; _loading = false;
     }
 
     private async Task LoadAsync()
     {
-        _loading = true; _error = null;
+        _loading = true; _error = null; _fromCopy = false;
         try
         {
             var all = await Api.ListCalendarsAsync();
@@ -176,7 +237,9 @@ else
                 (await Api.ListHomeworkAsync(Dk.Local(DateTime.Today.AddDays(-7)), Dk.Local(DateTime.Today.AddDays(15)), _who.Id)).ToList();
             await LoadCleaningAsync();
             await LoadDayAsync();
+            await SaveCopyAsync();
         }
+        catch (HttpRequestException) { await ShowSavedCopyAsync(); }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _loading = false; }
     }
@@ -218,7 +281,7 @@ else
     private async Task CleanDoneAsync(CleaningDto c)
     {
         _error = null;
-        try { await Api.MarkCleaningDoneAsync(c.Id, new MarkCleaningDoneRequest()); _cleaningDue.Remove(c); _saved = true; }
+        try { await Api.MarkCleaningDoneAsync(c.Id, new MarkCleaningDoneRequest()); _cleaningDue.Remove(c); _saved = true; await SaveCopyAsync(); }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }
 
@@ -230,7 +293,13 @@ else
     private async Task ShowDayAsync(DateTime day)
     {
         _day = day; _loadingDay = true; _error = null; _saved = false;
-        try { await LoadDayAsync(); }
+        try
+        {
+            if (_fromCopy) { _error = "Du er offline. Kun i dag er gemt."; _day = _copyDay; return; }
+            await LoadDayAsync();
+            await SaveCopyAsync();
+        }
+        catch (HttpRequestException) { _error = "Du er offline. Kun i dag er gemt."; _day = DateTime.Today; }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
         finally { _loadingDay = false; }
     }
@@ -247,6 +316,7 @@ else
             if (done) await Api.MarkChecklistDoneAsync(entry.ItemId, date);
             else await Api.UnmarkChecklistDoneAsync(entry.ItemId, date);
             _saved = true;
+            await SaveCopyAsync();
         }
         catch (Exception ex)
         {
@@ -264,6 +334,7 @@ else
             if (done) await Api.MarkTodoDoneAsync(todo.Id); else await Api.UnmarkTodoDoneAsync(todo.Id);
             _myTodos.Remove(todo); // finished points leave "mine"
             _saved = true;
+            await SaveCopyAsync();
         }
         catch (Exception ex) { _error = Session.ErrorMessage(ex); }
     }

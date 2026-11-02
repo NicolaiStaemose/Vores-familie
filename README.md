@@ -2,7 +2,7 @@
 
 Familieapp (Android, installeret PWA): fælles kalender, lektier, opgaver, madplan m.m. Se [CLAUDE.md](CLAUDE.md) for mål, stack og faser.
 
-**Status: fase 4** – login, familier og rettigheder (fase 1), kalendere med tovejs-synk til Google Kalender og lektier (fase 2), rutiner, daglige opgaver og ToDo (fase 3) samt madplan, indkøbsliste og rengøringsplan (fase 4).
+**Status: fase 5** – login, familier og rettigheder (fase 1), kalendere med tovejs-synk til Google Kalender og lektier (fase 2), rutiner, daglige opgaver og ToDo (fase 3), madplan, indkøbsliste og rengøringsplan (fase 4) samt installation som app, påmindelser kl. 07:00 og 19:00 og offline brug (fase 5).
 
 ## Arkitektur
 
@@ -48,6 +48,13 @@ Se [docs/google-setup.md](docs/google-setup.md). I Development kører API'et som
 - **Indkøb:** liste grupperet efter butikkens afdelinger (foreslås automatisk ud fra navnet), mængde, faste varer, "Ryd købte" og forslag til varer, I køber omkring hver uge (mindst 3 indkøbsdage inden for 8 uger).
 - **Rengøring:** opgaver pr. rum med interval og "sidst gjort". Forfaldne opgaver er markeret, og Min side viser dem for den, de hører til.
 - Rettighederne styres pr. område (Madplan, Indkøb, Rengøring) på Admin-siden.
+
+## App, notifikationer og offline
+
+- **Installér** appen fra Chrome på Android (startskærm, eget ikon, bundmenu).
+- **Notifikationer** kl. 07:00 og 19:00 med det, den enkelte mangler at gøre (Mere → Notifikationer). Kræver VAPID-nøgler og at API'et kører hele døgnet.
+- **Offline:** appen åbner uden net; indkøbslisten kan bruges og synkroniseres bagefter, og Min side kan ses.
+- Opsætning, test på telefon og Azure-krav: se [docs/push.md](docs/push.md).
 
 ## Test
 
